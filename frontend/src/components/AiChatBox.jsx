@@ -12,6 +12,7 @@ const starterPrompts = [
 
 const CLIENT_MESSAGE_LIMIT = 12;
 const SUPPORT_EMAIL = "contact@reshareloop.com";
+const SHOW_CHAT_DEBUG = import.meta.env.DEV;
 
 const formatFunctionError = (payload) => {
   if (!payload || typeof payload !== "object") return "";
@@ -37,6 +38,19 @@ const getFunctionErrorMessage = async (error) => {
   }
 
   return error instanceof Error ? error.message : "AI chat is unavailable.";
+};
+
+const formatChatDebug = (payload) => {
+  if (!SHOW_CHAT_DEBUG || (!payload?.debug && !payload?.requestId)) return "";
+
+  const details = [
+    payload.debug,
+    payload.requestId ? `Request ID: ${payload.requestId}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return details ? `\n\nDebug: ${details}` : "";
 };
 
 const initialMessages = [
@@ -123,13 +137,17 @@ const AiChatBox = () => {
         );
       }
 
+      const debugDetails = formatChatDebug(data);
+
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
           content:
-            data?.reply ||
-            "I could not generate a response. Please try again.",
+            `${
+              data?.reply ||
+              "I could not generate a response. Please try again."
+            }${debugDetails}`,
           canAskAi:
             !options.forceAi &&
             (data?.source === "faq" || data?.source === "scope_guard"),
