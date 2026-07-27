@@ -140,11 +140,45 @@ const extractText = (response: Record<string, unknown>) => {
       if (!part || typeof part !== "object") continue;
       const text = (part as { text?: unknown }).text;
       if (typeof text === "string") chunks.push(text);
+      const refusal = (part as { refusal?: unknown }).refusal;
+      if (typeof refusal === "string") chunks.push(refusal);
     }
   }
 
   return chunks.join("\n").trim();
 };
+
+// Keep empty upstream responses debuggable without breaking the chat UI.
+const getOpenAiEmptyReplyDebug = (
+  payload: Record<string, unknown>,
+  requestId: string | null
+) => {
+  const status = typeof payload.status === "string" ? payload.status : "";
+  const incompleteDetails =
+    payload.incomplete_details && typeof payload.incomplete_details === "object"
+      ? JSON.stringify(payload.incomplete_details)
+      : "";
+  const outputTypes = Array.isArray(payload.output)
+    ? payload.output
+        .map((item) =>
+          item && typeof item === "object"
+            ? String((item as { type?: unknown }).type || "unknown")
+            : "unknown"
+        )
+        .join(", ")
+    : "";
+
+  return [
+    "OpenAI returned no readable text.",
+    status ? `Status: ${status}` : "",
+    incompleteDetails ? `Incomplete details: ${incompleteDetails}` : "",
+    outputTypes ? `Output types: ${outputTypes}` : "",
+    requestId ? `Request ID: ${requestId}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+};
+
 // Extract readable error messages from OpenAI error responses.
 const getOpenAiError = (payload: unknown, fallback: string) => {
   if (!payload || typeof payload !== "object") return fallback;
@@ -181,11 +215,17 @@ serve(async (req) => {
       .find((message) => message.role === "user");
 
     if (!latestUserMessage) {
-      return jsonResponse({ success: false, error: "Missing user message" }, 400);
+      return jsonResponse(
+        { success: false, error: "Missing user message" },
+        400
+      );
     }
 
     // Reject unrelated questions locally so they do not spend OpenAI tokens.
-    if (!forceAi && !isPlatformQuestion(latestUserMessage.content, body.pageContext)) {
+    if (
+      !forceAi &&
+      !isPlatformQuestion(latestUserMessage.content, body.pageContext)
+    ) {
       return jsonResponse({
         success: true,
         reply: OUT_OF_SCOPE_REPLY,
@@ -255,15 +295,22 @@ serve(async (req) => {
       );
     }
 
+    const requestId = openAiResponse.headers.get("x-request-id");
     const reply = extractText(data);
     if (!reply) {
-      return jsonResponse(
-        {
-          success: false,
-          error: "The assistant did not return a message",
-        },
-        502
-      );
+      const debugMessage = getOpenAiEmptyReplyDebug(data, requestId);
+      console.error("OpenAI returned no readable text", {
+        requestId,
+        response: data,
+      });
+      return jsonResponse({
+        success: true,
+        reply:
+          "I could not generate a reliable answer from the available ReShareLoop information. Please ask about shopping, renting, selling, returns, orders, or account help, or contact support for account-specific issues.",
+        source: "openai_empty",
+        debug: debugMessage,
+        requestId,
+      });
     }
 
     return jsonResponse({ success: true, reply, source: "openai" });
