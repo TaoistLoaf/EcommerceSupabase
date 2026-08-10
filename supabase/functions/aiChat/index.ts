@@ -26,6 +26,8 @@ const MAX_CONTENT_LENGTH = 1200;
 const MAX_PAGE_CONTEXT_LENGTH = 1800;
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5-mini";
+const OPENAI_MAX_OUTPUT_TOKENS = 900;
+const OPENAI_RETRY_MAX_OUTPUT_TOKENS = 1600;
 const ORDER_AUTH_REPLY =
   "You are signed in. I can continue helping with your order request.";
 const ORDER_AUTH_REQUIRED_REPLY =
@@ -297,6 +299,62 @@ const getOpenAiError = (payload: unknown, fallback: string) => {
   return typeof message === "string" && message.trim() ? message : fallback;
 };
 
+const supportsReasoningEffort = (model: string) =>
+  model.startsWith("gpt-5") || model.startsWith("o");
+
+const isMaxOutputTokenIncomplete = (payload: Record<string, unknown>) => {
+  const details = payload.incomplete_details;
+  if (!details || typeof details !== "object") return false;
+
+  return (
+    payload.status === "incomplete" &&
+    (details as { reason?: unknown }).reason === "max_output_tokens"
+  );
+};
+
+const buildOpenAiPayload = (
+  model: string,
+  instructions: string,
+  messages: ChatMessage[],
+  maxOutputTokens: number
+) => {
+  const payload: Record<string, unknown> = {
+    model,
+    instructions,
+    input: messages,
+    max_output_tokens: maxOutputTokens,
+  };
+
+  // GPT-5 reasoning can consume output budget before a visible answer is produced.
+  if (supportsReasoningEffort(model)) {
+    payload.reasoning = { effort: "minimal" };
+  }
+
+  return payload;
+};
+
+const requestOpenAi = async (
+  apiKey: string,
+  model: string,
+  instructions: string,
+  messages: ChatMessage[],
+  maxOutputTokens: number
+) => {
+  const response = await fetch(OPENAI_RESPONSES_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(
+      buildOpenAiPayload(model, instructions, messages, maxOutputTokens)
+    ),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  return { response, data: data as Record<string, unknown> };
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests.
   if (req.method === "OPTIONS") {
@@ -376,21 +434,14 @@ serve(async (req) => {
     }
 
     const model = Deno.env.get("OPENAI_MODEL") || DEFAULT_MODEL;
-    const openAiResponse = await fetch(OPENAI_RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        instructions: getSiteInstructions(body.pageContext),
-        input: messages,
-        max_output_tokens: 450,
-      }),
-    });
-
-    const data = await openAiResponse.json().catch(() => ({}));
+    const instructions = getSiteInstructions(body.pageContext);
+    let { response: openAiResponse, data } = await requestOpenAi(
+      apiKey,
+      model,
+      instructions,
+      messages,
+      OPENAI_MAX_OUTPUT_TOKENS
+    );
 
     if (!openAiResponse.ok) {
       const requestId = openAiResponse.headers.get("x-request-id");
@@ -414,8 +465,45 @@ serve(async (req) => {
       );
     }
 
-    const requestId = openAiResponse.headers.get("x-request-id");
-    const reply = extractText(data);
+    let requestId = openAiResponse.headers.get("x-request-id");
+    let reply = extractText(data);
+    if (!reply && isMaxOutputTokenIncomplete(data)) {
+      console.warn("Retrying OpenAI request after max_output_tokens", {
+        requestId,
+      });
+      const retry = await requestOpenAi(
+        apiKey,
+        model,
+        instructions,
+        messages,
+        OPENAI_RETRY_MAX_OUTPUT_TOKENS
+      );
+      openAiResponse = retry.response;
+      data = retry.data;
+      requestId = openAiResponse.headers.get("x-request-id");
+      if (!openAiResponse.ok) {
+        const message = getOpenAiError(
+          data,
+          `OpenAI retry failed with status ${openAiResponse.status}`
+        );
+        console.error("OpenAI retry failed", {
+          status: openAiResponse.status,
+          requestId,
+          error: data,
+        });
+        return jsonResponse(
+          {
+            success: false,
+            error: message,
+            upstreamStatus: openAiResponse.status,
+            requestId,
+          },
+          502
+        );
+      }
+      reply = extractText(data);
+    }
+
     if (!reply) {
       const debugMessage = getOpenAiEmptyReplyDebug(data, requestId);
       console.error("OpenAI returned no readable text", {
