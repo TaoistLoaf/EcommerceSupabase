@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   FAQ_ENTRIES,
   KNOWLEDGE_FACTS,
@@ -7,6 +8,9 @@ import {
   PRODUCT_CONTEXT_KEYWORDS,
   SUPPORT_EMAIL,
 } from "./knowledge.ts";
+import { sendOrderSummaryEmail } from "./orderEmail.ts";
+import { sendRecentOrderSummaryEmail } from "./orderSummaryEmail.ts";
+import { getChatIntent } from "./router.ts";
 
 // CORS and JSON headers for browser POST requests.
 const corsHeaders = {
@@ -22,6 +26,59 @@ const MAX_CONTENT_LENGTH = 1200;
 const MAX_PAGE_CONTEXT_LENGTH = 1800;
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_MODEL = "gpt-5-mini";
+const OPENAI_MAX_OUTPUT_TOKENS = 900;
+const OPENAI_RETRY_MAX_OUTPUT_TOKENS = 1600;
+const ORDER_AUTH_REPLY =
+  "You are signed in. I can continue helping with your order request.";
+const ORDER_AUTH_REQUIRED_REPLY =
+  "Please sign in before asking about your order or tracking information.";
+
+const ORDER_AUTH_KEYWORDS = [
+  "where is my order",
+  "track my order",
+  "track order",
+  "tracking",
+  "order status",
+  "live order",
+  "payment status",
+  "my order",
+  "我的订单",
+  "订单状态",
+  "支付状态",
+  "物流",
+  "追踪",
+  "查看订单",
+];
+
+const ORDER_EMAIL_ACTION_KEYWORDS = [
+  "email",
+  "mail",
+  "send",
+  "forward",
+  "inbox",
+  "邮箱",
+  "邮件",
+  "发送",
+  "发给",
+  "发到",
+];
+
+const ORDER_SUMMARY_KEYWORDS = [
+  "order",
+  "orders",
+  "order content",
+  "order details",
+  "order summary",
+  "order information",
+  "recent orders",
+  "latest orders",
+  "订单",
+  "订单内容",
+  "订单信息",
+  "订单详情",
+  "订单摘要",
+  "最近订单",
+];
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -57,6 +114,55 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     status,
     headers: corsHeaders,
   });
+
+const isOrderAuthRequest = (text: string) => {
+  const normalized = normalizeSearchText(text);
+  return ORDER_AUTH_KEYWORDS.some((keyword) =>
+    includesKeyword(normalized, keyword)
+  );
+};
+
+const isRecentOrderSummaryEmailRequest = (text: string) => {
+  const normalized = normalizeSearchText(text);
+  const mentionsEmailAction = ORDER_EMAIL_ACTION_KEYWORDS.some((keyword) =>
+    includesKeyword(normalized, keyword)
+  );
+  const mentionsOrderSummary = ORDER_SUMMARY_KEYWORDS.some((keyword) =>
+    includesKeyword(normalized, keyword)
+  );
+
+  return mentionsEmailAction && mentionsOrderSummary;
+};
+
+const getAuthUser = async (req: Request) => {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) {
+    throw new Error("Supabase auth environment is not configured");
+  }
+
+  const userSupabase = createClient(supabaseUrl, anonKey, {
+    global: {
+      headers: {
+        Authorization: req.headers.get("Authorization") || "",
+      },
+    },
+  });
+
+  const { data, error } = await userSupabase.auth.getUser();
+  if (error || !data.user?.id) return null;
+  return data.user;
+};
+
+const getOrderAuthResponse = async (req: Request) => {
+  const user = await getAuthUser(req);
+  return {
+    success: true,
+    authenticated: Boolean(user),
+    source: "order_auth_check",
+    reply: user ? ORDER_AUTH_REPLY : ORDER_AUTH_REQUIRED_REPLY,
+  };
+};
 
 // Build model instructions from local ReShareLoop facts and safe page context.
 const getSiteInstructions = (pageContext: unknown) => {
@@ -193,6 +299,62 @@ const getOpenAiError = (payload: unknown, fallback: string) => {
   return typeof message === "string" && message.trim() ? message : fallback;
 };
 
+const supportsReasoningEffort = (model: string) =>
+  model.startsWith("gpt-5") || model.startsWith("o");
+
+const isMaxOutputTokenIncomplete = (payload: Record<string, unknown>) => {
+  const details = payload.incomplete_details;
+  if (!details || typeof details !== "object") return false;
+
+  return (
+    payload.status === "incomplete" &&
+    (details as { reason?: unknown }).reason === "max_output_tokens"
+  );
+};
+
+const buildOpenAiPayload = (
+  model: string,
+  instructions: string,
+  messages: ChatMessage[],
+  maxOutputTokens: number
+) => {
+  const payload: Record<string, unknown> = {
+    model,
+    instructions,
+    input: messages,
+    max_output_tokens: maxOutputTokens,
+  };
+
+  // GPT-5 reasoning can consume output budget before a visible answer is produced.
+  if (supportsReasoningEffort(model)) {
+    payload.reasoning = { effort: "minimal" };
+  }
+
+  return payload;
+};
+
+const requestOpenAi = async (
+  apiKey: string,
+  model: string,
+  instructions: string,
+  messages: ChatMessage[],
+  maxOutputTokens: number
+) => {
+  const response = await fetch(OPENAI_RESPONSES_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(
+      buildOpenAiPayload(model, instructions, messages, maxOutputTokens)
+    ),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  return { response, data: data as Record<string, unknown> };
+};
+
 serve(async (req) => {
   // Handle CORS preflight requests.
   if (req.method === "OPTIONS") {
@@ -218,6 +380,21 @@ serve(async (req) => {
       return jsonResponse(
         { success: false, error: "Missing user message" },
         400
+      );
+    }
+
+    if (isRecentOrderSummaryEmailRequest(latestUserMessage.content)) {
+      return jsonResponse(await sendRecentOrderSummaryEmail(req));
+    }
+
+    if (isOrderAuthRequest(latestUserMessage.content)) {
+      return jsonResponse(await getOrderAuthResponse(req));
+    }
+
+    const intent = getChatIntent(latestUserMessage.content);
+    if (intent === "email_order_summary") {
+      return jsonResponse(
+        await sendOrderSummaryEmail(req, latestUserMessage.content)
       );
     }
 
@@ -257,21 +434,14 @@ serve(async (req) => {
     }
 
     const model = Deno.env.get("OPENAI_MODEL") || DEFAULT_MODEL;
-    const openAiResponse = await fetch(OPENAI_RESPONSES_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        instructions: getSiteInstructions(body.pageContext),
-        input: messages,
-        max_output_tokens: 450,
-      }),
-    });
-
-    const data = await openAiResponse.json().catch(() => ({}));
+    const instructions = getSiteInstructions(body.pageContext);
+    let { response: openAiResponse, data } = await requestOpenAi(
+      apiKey,
+      model,
+      instructions,
+      messages,
+      OPENAI_MAX_OUTPUT_TOKENS
+    );
 
     if (!openAiResponse.ok) {
       const requestId = openAiResponse.headers.get("x-request-id");
@@ -295,8 +465,45 @@ serve(async (req) => {
       );
     }
 
-    const requestId = openAiResponse.headers.get("x-request-id");
-    const reply = extractText(data);
+    let requestId = openAiResponse.headers.get("x-request-id");
+    let reply = extractText(data);
+    if (!reply && isMaxOutputTokenIncomplete(data)) {
+      console.warn("Retrying OpenAI request after max_output_tokens", {
+        requestId,
+      });
+      const retry = await requestOpenAi(
+        apiKey,
+        model,
+        instructions,
+        messages,
+        OPENAI_RETRY_MAX_OUTPUT_TOKENS
+      );
+      openAiResponse = retry.response;
+      data = retry.data;
+      requestId = openAiResponse.headers.get("x-request-id");
+      if (!openAiResponse.ok) {
+        const message = getOpenAiError(
+          data,
+          `OpenAI retry failed with status ${openAiResponse.status}`
+        );
+        console.error("OpenAI retry failed", {
+          status: openAiResponse.status,
+          requestId,
+          error: data,
+        });
+        return jsonResponse(
+          {
+            success: false,
+            error: message,
+            upstreamStatus: openAiResponse.status,
+            requestId,
+          },
+          502
+        );
+      }
+      reply = extractText(data);
+    }
+
     if (!reply) {
       const debugMessage = getOpenAiEmptyReplyDebug(data, requestId);
       console.error("OpenAI returned no readable text", {
