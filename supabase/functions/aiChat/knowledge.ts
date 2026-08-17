@@ -1,5 +1,5 @@
 export const SUPPORT_EMAIL = "contact@reshareloop.com";
-
+export const SUPPORT_PHONE = "(+1)864-643-8230"
 export const OUT_OF_SCOPE_REPLY =
   "I can only help with ReShareLoop shopping, renting, selling, returns, orders, and account questions.";
 
