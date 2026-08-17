@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
+import AiChatBox from "./components/AiChatBox";
 import { Routes, Route, useParams, useNavigate, Navigate, useLocation } from "react-router-dom";
 import Add from "./pages/Add";
 import Lend from "./pages/Lend";
@@ -237,6 +238,7 @@ const App = () => {
         {/* Default redirect if visiting root */}
         <Route path="*" element={<Navigate to={`/admin/${user.id}/add-sell`} replace />} />
       </Routes>
+      <AiChatBox />
     </div>
   );
 };
