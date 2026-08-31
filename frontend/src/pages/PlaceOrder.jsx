@@ -6,6 +6,8 @@ import { assets } from "../assets/assets";
 import { ShopContext } from "../context/ShopContext";
 import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
+import { buildOrderItems } from "../domain/orders/buildOrderItems";
+import { buildOrderPayload } from "../domain/orders/buildOrderPayload";
 
 const PlaceOrder = () => {
   const [method, setMethod] = useState("cod");
@@ -118,46 +120,17 @@ const PlaceOrder = () => {
         return;
       }
 
-      // ✅ Build order items from cart
-      let orderItems = [];
-      for (const productId in cartItems) {
-        for (const sizeKey in cartItems[productId]) {
-          const entry = cartItems[productId][sizeKey];
-          const quantity = typeof entry === "object" ? entry.quantity : entry;
-          if (!quantity || quantity <= 0) continue;
+      // Characterized as a pure transformation so schema refactors can preserve behavior.
+      const orderItems = buildOrderItems(cartItems, products);
 
-          const itemInfo = structuredClone(
-            products.find((product) => String(product.id) === String(productId))
-          );
-          if (itemInfo) {
-            itemInfo.size =
-              typeof entry === "object" && entry.baseSize
-                ? entry.baseSize
-                : sizeKey.split("|custom:")[0];
-            itemInfo.size_key = sizeKey;
-            itemInfo.quantity = quantity;
-            if (typeof entry === "object" && entry.customization) {
-              itemInfo.customization = entry.customization;
-            }
-            if (typeof entry === "object" && entry.rentInfo) {
-              itemInfo.rentInfo = entry.rentInfo;
-            }
-            orderItems.push(itemInfo);
-          }
-        }
-      }
-
-      const orderData = {
+      const orderData = buildOrderPayload({
         address: formData,
         items: orderItems,
-        amount: getCartAmount() + delivery_fee,
-        paymentmethod: method,
-        payment: false,
-        status: "Order Placed",
-        date: new Date().toISOString(),
-        user_id: uid, // ✅ always record the user id
-        buyer_id: uid,
-      };
+        amount: getCartAmount(),
+        deliveryFee: delivery_fee,
+        paymentMethod: method,
+        userId: uid,
+      });
 
       switch (method) {
         /* ---------------------- COD ---------------------- */

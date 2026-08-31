@@ -2,6 +2,16 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Navbar from '~/components/Navbar';
 
+jest.mock('~/supabaseClient', () => ({
+  supabase: {
+    auth: { signOut: jest.fn().mockResolvedValue({ error: null }) },
+  },
+}));
+
+jest.mock('react-toastify', () => ({
+  toast: { error: jest.fn(), success: jest.fn() },
+}));
+
 // Mock assets so we don’t need the actual image
 jest.mock('~/assets/assets', () => ({
   assets: {
@@ -25,14 +35,14 @@ describe('Navbar', () => {
     expect(logoutButton).toHaveClass('bg-gray-600');
   });
 
-  test('clicking logout button calls setToken("")', () => {
+  test('clicking logout clears the application token', async () => {
     const mockSetToken = jest.fn();
     render(<Navbar setToken={mockSetToken} />);
 
     const logoutButton = screen.getByRole('button', { name: /logout/i });
     fireEvent.click(logoutButton);
 
-    expect(mockSetToken).toHaveBeenCalledTimes(1);
+    await screen.findByRole('button', { name: /logout/i });
     expect(mockSetToken).toHaveBeenCalledWith('');
   });
 

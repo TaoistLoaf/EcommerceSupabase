@@ -12,7 +12,8 @@ module.exports={
   moduleNameMapper: {
        "^#/(.*)$": "<rootDir>/src/$1",
     "^~/(.*)$": "<rootDir>/src/$1",
-    "\\.(css|scss|sass)$": "identity-obj-proxy"
+    "\\.(css|scss|sass)$": "identity-obj-proxy",
+    "\\.(png|jpe?g|gif|svg|webp)$": "<rootDir>/src/__mocks__/fileMock.js"
   },
   // If your source uses ESM/TS, uncomment the next line:
   // extensionsToTreatAsEsm: ['.ts', '.tsx'],
