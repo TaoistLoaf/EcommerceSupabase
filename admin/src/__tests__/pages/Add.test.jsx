@@ -19,6 +19,7 @@ jest.mock("~/supabaseClient", () => ({
 jest.mock("~/components/Navbar", () => () => <div data-testid="navbar">Navbar</div>);
 jest.mock("~/components/Sidebar", () => () => <div data-testid="sidebar">Sidebar</div>);
 jest.mock("~/components/Login", () => () => <div data-testid="login">Login</div>);
+jest.mock("~/components/AiChatBox", () => () => <div data-testid="ai-chat">AI Chat</div>);
 jest.mock("~/pages/Add", () => () => <div data-testid="add">Add page</div>);
 
 import App from "~/App";

@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import axios from "axios";
 import Title from "../components/Title";
 import CartTotal from "../components/CartTotal";
@@ -6,8 +6,8 @@ import { assets } from "../assets/assets";
 import { ShopContext } from "../context/ShopContext";
 import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
-import { buildOrderItems } from "../domain/orders/buildOrderItems";
-import { buildOrderPayload } from "../domain/orders/buildOrderPayload";
+import { createCheckoutGateway } from "../infrastructure/checkout/checkoutGateway";
+import { useCheckoutController } from "../presentation/checkout/useCheckoutController";
 
 const PlaceOrder = () => {
   const [method, setMethod] = useState("cod");
@@ -42,225 +42,41 @@ const PlaceOrder = () => {
     setFormData((data) => ({ ...data, [name]: value }));
   };
 
-  const sendOrderNotificationEmails = async (orderId) => {
-    if (!orderId) return;
+  const checkoutGateway = useMemo(
+    () =>
+      createCheckoutGateway({
+        supabase,
+        httpClient: axios,
+        fetchImpl: fetch,
+        supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+        backendUrl,
+        token,
+      }),
+    [backendUrl, token]
+  );
 
-    try {
-      const { data, error } = await supabase.functions.invoke("sendOrderEmails", {
-        body: {
-          orderId,
-          eventType: "order_submitted",
-        },
-      });
-
-      if (error) {
-        console.warn("Order email notification failed:", error.message || error);
-        return;
-      }
-
-      if (data?.success === false) {
-        console.warn("Order email notification failed:", data.error || data);
-        return;
-      }
-
-      const failedResult = Array.isArray(data?.results)
-        ? data.results.find(
-            (result) =>
-              result?.sent === false ||
-              (result?.skipped && result.reason !== "already_sent")
-          )
-        : null;
-
-      if (failedResult) {
-        console.warn("Order email notification failed:", failedResult);
-      }
-    } catch (error) {
-      console.warn("Order email notification failed:", error);
-    }
-  };
-
-  const initPay = (order) => {
-    const options = {
-      key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-      amount: order.amount,
-      currency: order.currency,
-      name: "Order Payment",
-      description: "Order Payment",
-      order_id: order.id,
-      receipt: order.receipt,
-      handler: async (response) => {
-        console.log(response);
-        try {
-          const { data } = await axios.post(
-            backendUrl + "/api/order/verifyRazorpay",
-            response,
-            { headers: { token } }
-          );
-          if (data.success) {
-            navigate("/orders");
-            setCartItems({});
-          }
-        } catch (error) {
-          console.log(error);
-          toast.error(error);
-        }
-      },
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.open();
-  };
+  const { isSubmitting, placeOrder } = useCheckoutController({
+    gateway: checkoutGateway,
+    razorpayKey: import.meta.env.VITE_RAZORPAY_KEY_ID,
+    createRazorpay: (options) => new window.Razorpay(options),
+    redirect: (url) => window.location.replace(url),
+    navigateToOrders: () => navigate("/orders"),
+    clearCart: () => setCartItems({}),
+    notify: toast,
+  });
 
   const onSubmitHandler = async (event) => {
     event.preventDefault();
 
-    try {
-      const uid = user?.id || userId || localStorage.getItem("user_id");
-      if (!uid) {
-        toast.error("User not logged in — please login again!");
-        return;
-      }
-
-      // Characterized as a pure transformation so schema refactors can preserve behavior.
-      const orderItems = buildOrderItems(cartItems, products);
-
-      const orderData = buildOrderPayload({
-        address: formData,
-        items: orderItems,
-        amount: getCartAmount(),
-        deliveryFee: delivery_fee,
-        paymentMethod: method,
-        userId: uid,
-      });
-
-      switch (method) {
-        /* ---------------------- COD ---------------------- */
-        case "cod": {
-          const { data: insertedOrder, error } = await supabase
-            .from("orders")
-            .insert([orderData])
-            .select("id")
-            .single();
-          if (error) {
-            toast.error(error.message);
-          } else {
-            await sendOrderNotificationEmails(insertedOrder?.id);
-            setCartItems({});
-            navigate("/orders");
-            toast.success("Order placed successfully!");
-          }
-          break;
-        }
-
-        /* ---------------------- STRIPE ---------------------- */
-        case "stripe": {
-          const { data: insertedOrder, error } = await supabase
-            .from("orders")
-            .insert([orderData])
-            .select("id")
-            .single();
-
-          if (error) {
-            toast.error(error.message);
-            return;
-          }
-          const orderId = insertedOrder?.id;
-          await sendOrderNotificationEmails(orderId);
-
-          // pass user token to know who's access to the order
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verifyStripe`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ orderId, amount: orderData.amount }),
-            }
-          );
-
-          const data = await response.json();
-
-          if (data.success && data.session_url) {
-            window.location.replace(data.session_url);
-          } else {
-            toast.error(data.error || "Stripe order failed");
-          }
-
-          break;
-        }
-
-        /* ---------------------- GOOGLE PAY ---------------------- */
-        case "googlepay": {
-          const { data: insertedOrder, error } = await supabase
-            .from("orders")
-            .insert([orderData])
-            .select("id")
-            .single();
-
-          if (error) {
-            toast.error(error.message);
-            return;
-          }
-          const orderId = insertedOrder?.id;
-          await sendOrderNotificationEmails(orderId);
-
-          const response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verifyGooglePay`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({ orderId, amount: orderData.amount }),
-            }
-          );
-
-          const data = await response.json();
-
-          if (data.success && data.session_url) {
-            window.location.replace(data.session_url);
-          } else {
-            toast.error(data.error || "Google Pay order failed");
-          }
-
-          break;
-        }
-
-        /* ---------------------- RAZORPAY ---------------------- */
-        case "razorpay": {
-          const { data: insertedOrder, error } = await supabase
-            .from("orders")
-            .insert([orderData])
-            .select("id")
-            .single();
-          if (error) {
-            toast.error(error.message);
-            return;
-          }
-          await sendOrderNotificationEmails(insertedOrder?.id);
-
-          const responseRazorpay = await axios.post(
-            backendUrl + "/api/order/razorpay",
-            orderData,
-            { headers: { token } }
-          );
-
-          if (responseRazorpay.data.success) {
-            initPay(responseRazorpay.data.order);
-          }
-
-          break;
-        }
-
-        default:
-          break;
-      }
-    } catch (error) {
-      console.log(error);
-      toast.error(error.message);
-    }
+    await placeOrder({
+      userId: user?.id || userId || localStorage.getItem("user_id"),
+      address: formData,
+      cartItems,
+      products,
+      subtotal: getCartAmount(),
+      deliveryFee: delivery_fee,
+      paymentMethod: method,
+    });
   };
 
   return (
@@ -425,9 +241,10 @@ const PlaceOrder = () => {
           <div className="w-full text-end mt-8">
             <button
               type="submit"
-              className="bg-black text-white px-16 py-3 text-sm"
+              disabled={isSubmitting}
+              className="bg-black text-white px-16 py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
-              PLACE ORDER
+              {isSubmitting ? "PLACING ORDER..." : "PLACE ORDER"}
             </button>
           </div>
         </div>
