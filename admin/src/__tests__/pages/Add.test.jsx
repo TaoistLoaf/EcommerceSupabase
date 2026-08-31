@@ -1,141 +1,65 @@
-/* eslint-env jest */
-import { render, screen, fireEvent } from "@testing-library/react";
-import '@testing-library/jest-dom';
-import React from 'react';
-import { MemoryRouter } from 'react-router-dom';
-import App from '~/App';
-jest.mock('~/components/Navbar', () => (props) => (
-  <div data-testid="navbar" onClick={() => props.setToken && props.setToken('')}>
-    Navbar (click to logout)
-  </div>
-));
+import React from "react";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
-jest.mock('~/pages/Orders', () => ({ token }) => (
-  <div data-testid="orders">Orders page — token:{token}</div>
-));
-jest.mock('~/components/Sidebar', () => () => (
-  <div data-testid="sidebar">Sidebar</div>
-));
+const mockUnsubscribe = jest.fn();
+jest.mock("~/supabaseClient", () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn(),
+      onAuthStateChange: jest.fn(() => ({
+        data: { subscription: { unsubscribe: mockUnsubscribe } },
+      })),
+    },
+    from: jest.fn(),
+    functions: { invoke: jest.fn() },
+  },
+}));
 
-jest.mock('~/components/Login', () => ({ setToken }) => (
-  <div data-testid="login">
-    Login
-    <button onClick={() => setToken('mocktoken')} data-testid="login-btn">
-      Mock Login
-    </button>
-  </div>
-));
+jest.mock("~/components/Navbar", () => () => <div data-testid="navbar">Navbar</div>);
+jest.mock("~/components/Sidebar", () => () => <div data-testid="sidebar">Sidebar</div>);
+jest.mock("~/components/Login", () => () => <div data-testid="login">Login</div>);
+jest.mock("~/components/AiChatBox", () => () => <div data-testid="ai-chat">AI Chat</div>);
+jest.mock("~/pages/Add", () => () => <div data-testid="add">Add page</div>);
 
-jest.mock('~/pages/Add', () => ({ token }) => (
-  <div data-testid="add">Add page — token:{token}</div>
-));
-jest.mock('~/pages/List', () => ({ token }) => (
-  <div data-testid="list">List page — token:{token}</div>
-));
-jest.mock('~/pages/Orders', () => ({ token }) => (
-  <div data-testid="orders">Orders page — token:{token}</div>
-));
+import App from "~/App";
+import { supabase } from "~/supabaseClient";
 
-describe('App', () => {
+describe("App authentication boundary", () => {
   beforeEach(() => {
-    // Ensure a clean slate for each test
+    jest.clearAllMocks();
     localStorage.clear();
-    jest.spyOn(Storage.prototype, 'setItem');
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  test('shows Login when no token in localStorage', () => {
-    expect(localStorage.getItem('token')).toBeNull();
-
+  test("shows login when there is no authenticated session", async () => {
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null }, error: null });
     render(
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter initialEntries={["/"]}>
         <App />
       </MemoryRouter>
     );
-
-    expect(screen.getByTestId('login')).toBeInTheDocument();
-    expect(screen.queryByTestId('navbar')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('sidebar')).not.toBeInTheDocument();
-
-    // ToastContainer should exist (react-toastify root has class "Toastify")
-    const toastRoot = document.body.querySelector('.Toastify');
-    expect(toastRoot).toBeTruthy();
+    expect(await screen.findByTestId("login")).toBeInTheDocument();
+    expect(screen.queryByTestId("navbar")).not.toBeInTheDocument();
   });
 
-  test('logging in sets token and shows authed layout', () => {
+  test("renders the seller route from a valid Supabase session", async () => {
+    supabase.auth.getSession.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "token-1",
+          user: { id: "seller-1", email: "seller@example.com", user_metadata: {} },
+        },
+      },
+      error: null,
+    });
     render(
-      <MemoryRouter initialEntries={['/list']}>
+      <MemoryRouter initialEntries={["/admin/seller-1/add-sell"]}>
         <App />
       </MemoryRouter>
     );
-
-    // Click our mocked login button to set the token
-    fireEvent.click(screen.getByTestId('login-btn'));
-
-    // App should now render the authed layout
-    expect(screen.getByTestId('navbar')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
-
-    // useEffect should have synced token to localStorage
-    expect(localStorage.setItem).toHaveBeenCalledWith('token', 'mocktoken');
-    expect(localStorage.getItem('token')).toBe('mocktoken');
-  });
-
-  test('with existing token, renders the correct route and passes token down', () => {
-    localStorage.setItem('token', 't123');
-
-    render(
-      <MemoryRouter initialEntries={['/list']}>
-        <App />
-      </MemoryRouter>
-    );
-
-    // Layout is present
-    expect(screen.getByTestId('navbar')).toBeInTheDocument();
-    expect(screen.getByTestId('sidebar')).toBeInTheDocument();
-
-    // Correct route element and token prop
-    expect(screen.getByTestId('list')).toHaveTextContent('token:t123');
-  });
-
-  // test('navigates to /add and /orders and still passes token', () => {
-  //   localStorage.setItem('token', 'abc');
-
-  //   // /add
-  //   const { rerender } = render(
-  //     <MemoryRouter initialEntries={['/add']}>
-  //       <App />
-  //     </MemoryRouter>
-  //   );
-  //   expect(screen.getByTestId('add')).toHaveTextContent('token:abc');
-
-  //   // /orders
-  //   rerender(
-  //     <MemoryRouter initialEntries={['/orders']}>
-  //       <App />
-  //     </MemoryRouter>
-  //   );
-  //   expect(screen.getByTestId('orders')).toHaveTextContent('token:abc');
-  // });
-
-  test('logging out (Navbar calls setToken("")) shows Login again', () => {
-    localStorage.setItem('token', 'stay');
-
-    render(
-      <MemoryRouter initialEntries={['/list']}>
-        <App />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByTestId('navbar')).toBeInTheDocument();
-
-    // Click the mocked Navbar to trigger setToken('')
-    fireEvent.click(screen.getByTestId('navbar'));
-
-    // Back to Login view
-    expect(screen.getByTestId('login')).toBeInTheDocument();
+    expect(await screen.findByTestId("navbar")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("add")).toBeInTheDocument();
+    expect(localStorage.getItem("token")).toBe("token-1");
   });
 });

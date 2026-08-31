@@ -8,6 +8,7 @@ import {
 } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
+import { calculateRentalQuote } from "../domain/rentals/calculateRentalQuote";
 
 const RentCalendar = ({ dailyRate, productPrice, onRentChange }) => {
   const [range, setRange] = useState([
@@ -30,10 +31,14 @@ const RentCalendar = ({ dailyRate, productPrice, onRentChange }) => {
     const end = range[0].endDate;
     if (start && end) {
       const diff = differenceInCalendarDays(end, start) + 1;
-      const rentFeeCalc = diff * dailyRate;
-      const depositCalc = Math.max(productPrice - rentFeeCalc, 0); // ✅ 商品原价 − rentFee，最低为0
-      const totalCalc =
-        rentFeeCalc >= productPrice ? rentFeeCalc : rentFeeCalc + depositCalc;
+      const quote = calculateRentalQuote({
+        days: diff,
+        dailyRate,
+        productPrice,
+      });
+      const rentFeeCalc = quote.rentFee;
+      const depositCalc = quote.deposit;
+      const totalCalc = quote.totalPrice;
 
       setDays(diff);
       setRentFee(rentFeeCalc);

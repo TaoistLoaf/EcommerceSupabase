@@ -2,6 +2,7 @@ import { createContext, useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import { calculateCartAmount } from "../domain/cart/calculateCartAmount";
 
 export const ShopContext = createContext();
 
@@ -169,23 +170,7 @@ const ShopContextProvider = (props) => {
   };
 
   const getCartAmount = () => {
-    let totalAmount = 0;
-    for (const productId in cartItems) {
-      const itemInfo = products.find((p) => String(p.id) === String(productId));
-      if (!itemInfo) continue;
-
-      for (const size in cartItems[productId]) {
-        const item = cartItems[productId][size];
-        if (typeof item === "object" && item.rentInfo) {
-          // ✅ 租赁商品使用 rentInfo.totalPrice
-          totalAmount += item.rentInfo.totalPrice || 0;
-        } else {
-          const qty = typeof item === "object" ? item.quantity : item;
-          if (qty > 0) totalAmount += itemInfo.price * qty;
-        }
-      }
-    }
-    return totalAmount;
+    return calculateCartAmount(cartItems, products);
   };
 
   const getUserCart = async (userId) => {

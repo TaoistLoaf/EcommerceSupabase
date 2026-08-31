@@ -1,110 +1,89 @@
-// src/__tests__/components/Login.test.jsx
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 
-// SUT
-import Login from "~/components/Login";
+jest.mock("~/supabaseClient", () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+      signInWithPassword: jest.fn(),
+      signUp: jest.fn(),
+      signInWithOAuth: jest.fn(),
+      resetPasswordForEmail: jest.fn(),
+    },
+    from: jest.fn(),
+    functions: { invoke: jest.fn() },
+  },
+}));
 
-// Mocks
-jest.mock("axios", () => ({
-  post: jest.fn(),
-}));
-jest.mock("~/utils/env.js", () => ({
-  // Make sure this path matches your Jest moduleNameMapper alias setup
-  backendUrl: "http://example.test",
-}));
 jest.mock("react-toastify", () => ({
-  toast: { error: jest.fn() },
+  toast: { error: jest.fn(), success: jest.fn(), info: jest.fn() },
 }));
 
-import axios from "axios";
+import Login from "~/components/Login";
+import { supabase } from "~/supabaseClient";
 import { toast } from "react-toastify";
 
 describe("Login", () => {
-  const setup = () => {
+  const renderLogin = () => {
     const setToken = jest.fn();
-    render(<Login setToken={setToken} />);
-    const emailInput = screen.getByPlaceholderText("your@email.com");
-    const passwordInput = screen.getByPlaceholderText("Enter your password");
-    const submitBtn = screen.getByRole("button", { name: /login/i });
-    return { setToken, emailInput, passwordInput, submitBtn };
+    render(
+      <MemoryRouter>
+        <Login setToken={setToken} />
+      </MemoryRouter>
+    );
+    return { setToken };
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    localStorage.clear();
+    supabase.auth.getSession.mockResolvedValue({ data: { session: null } });
   });
 
-  test("submits with email & password and sets token on success", async () => {
-    const user = userEvent.setup();
-    const { setToken, emailInput, passwordInput, submitBtn } = setup();
-
-    // Arrange axios response
-    axios.post.mockResolvedValueOnce({
-      data: { success: true, token: "abc123" },
-    });
-
-    // Type credentials
-    await user.type(emailInput, "admin@example.com");
-    await user.type(passwordInput, "secret");
-
-    // Submit
-    await user.click(submitBtn);
-
-    // Assert axios call
-    expect(axios.post).toHaveBeenCalledTimes(1);
-    const [url, payload] = axios.post.mock.calls[0];
-    expect(url).toMatch(/\/api\/user\/admin$/);
-    expect(payload).toEqual({ email: "admin@example.com", password: "secret" });
-
-    // Assert token set and no error toast
-    expect(setToken).toHaveBeenCalledWith("abc123");
-    expect(toast.error).not.toHaveBeenCalled();
+  test("renders the current seller login form", () => {
+    renderLogin();
+    expect(screen.getByRole("heading", { name: /admin panel/i })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("your@email.com")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter your password")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /login with email/i })).toBeInTheDocument();
   });
 
-  test("shows toast error when backend says success=false", async () => {
+  test("authenticates with Supabase and stores the returned session", async () => {
     const user = userEvent.setup();
-    const { setToken, emailInput, passwordInput, submitBtn } = setup();
-
-    axios.post.mockResolvedValueOnce({
-      data: { success: false, message: "Invalid credentials" },
+    const { setToken } = renderLogin();
+    supabase.auth.signInWithPassword.mockResolvedValue({
+      data: { session: { access_token: "session-token", user: { id: "seller-1" } } },
+      error: null,
     });
 
-    await user.type(emailInput, "admin@example.com");
-    await user.type(passwordInput, "wrongpass");
+    await user.type(screen.getByPlaceholderText("your@email.com"), "seller@example.com");
+    await user.type(screen.getByPlaceholderText("Enter your password"), "secret123");
+    await user.click(screen.getByRole("button", { name: /login with email/i }));
 
-    await user.click(submitBtn);
+    expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: "seller@example.com",
+      password: "secret123",
+    });
+    expect(setToken).toHaveBeenCalledWith("session-token");
+    expect(localStorage.getItem("user_id")).toBe("seller-1");
+    expect(toast.success).toHaveBeenCalledWith("Login successful!");
+  });
 
-    expect(axios.post).toHaveBeenCalledTimes(1);
+  test("keeps the user logged out when Supabase rejects credentials", async () => {
+    const user = userEvent.setup();
+    const { setToken } = renderLogin();
+    supabase.auth.signInWithPassword.mockResolvedValue({
+      data: { session: null },
+      error: new Error("Invalid credentials"),
+    });
+
+    await user.type(screen.getByPlaceholderText("your@email.com"), "seller@example.com");
+    await user.type(screen.getByPlaceholderText("Enter your password"), "wrong-password");
+    await user.click(screen.getByRole("button", { name: /login with email/i }));
+
     expect(setToken).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith("Invalid credentials");
-  });
-
-  test("shows toast error when request throws", async () => {
-    const user = userEvent.setup();
-    const { setToken, emailInput, passwordInput, submitBtn } = setup();
-
-    axios.post.mockRejectedValueOnce(new Error("Network error"));
-
-    await user.type(emailInput, "admin@example.com");
-    await user.type(passwordInput, "secret");
-
-    await user.click(submitBtn);
-
-    expect(axios.post).toHaveBeenCalledTimes(1);
-    expect(setToken).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith("Network error");
-  });
-
-  test("renders basic UI", () => {
-    setup();
-    expect(
-      screen.getByRole("heading", { name: /admin panel/i })
-    ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("your@email.com")).toBeInTheDocument();
-    expect(
-      screen.getByPlaceholderText("Enter your password")
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /login/i })).toBeInTheDocument();
   });
 });

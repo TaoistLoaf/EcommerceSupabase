@@ -24,8 +24,9 @@ import { supabase } from '~/supabaseClient';
 // --- Helpers to build the supabase method chains ---
 const makeSelectChain = (data, error = null) => {
   const order = jest.fn().mockResolvedValue({ data, error });
-  const select = jest.fn().mockReturnValue({ order });
-  return { select, order };
+  const eq = jest.fn().mockReturnValue({ order });
+  const select = jest.fn().mockReturnValue({ eq });
+  return { select, eq, order };
 };
 
 const makeDeleteChain = (error = null) => {
@@ -35,21 +36,23 @@ const makeDeleteChain = (error = null) => {
 };
 
 describe('List', () => {
+  const seller = { id: 'seller-1' };
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   test('fetches products on mount and renders rows', async () => {
     const rows = [
-      { id: 1, name: 'Widget A', category: 'Gadgets', price: 12.34, images: ['a.jpg'] },
-      { id: 2, name: 'Widget B', category: 'Tools',   price: 56.78, images: ['b.jpg'] },
+      { id: 1, seller_id: seller.id, name: 'Widget A', category: 'Gadgets', price: 12.34, images: ['a.jpg'] },
+      { id: 2, seller_id: seller.id, name: 'Widget B', category: 'Tools',   price: 56.78, images: ['b.jpg'] },
     ];
 
     // 1) SELECT chain for initial fetch
     const sel1 = makeSelectChain(rows);
     supabase.from.mockReturnValueOnce({ select: sel1.select });
 
-    render(<List token="t123" />);
+    render(<List user={seller} />);
 
     // Table header & content
     expect(await screen.findByText('All Products List')).toBeInTheDocument();
@@ -73,7 +76,7 @@ describe('List', () => {
     const sel1 = makeSelectChain(null, err);
     supabase.from.mockReturnValueOnce({ select: sel1.select });
 
-    render(<List token="t123" />);
+    render(<List user={seller} />);
 
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('Fetch failed');
@@ -81,7 +84,7 @@ describe('List', () => {
   });
 
   test('delete product: success → toast.success and refresh list', async () => {
-    const initialRows = [{ id: 101, name: 'Removable', category: 'Temp', price: 9.99, images: ['x.jpg'] }];
+    const initialRows = [{ id: 101, seller_id: seller.id, name: 'Removable', category: 'Temp', price: 9.99, images: ['x.jpg'] }];
     const refreshedRows = []; // After deletion, nothing left
 
     // Call sequence:
@@ -98,11 +101,11 @@ describe('List', () => {
     const sel2 = makeSelectChain(refreshedRows);
     supabase.from.mockReturnValueOnce({ select: sel2.select });
 
-    render(<List token="t123" />);
+    render(<List user={seller} />);
 
     const rowName = await screen.findByText('Removable');
     const row = rowName.closest('div');
-    const action = within(row).getByText('X');
+    const action = within(row).getByText('×');
     fireEvent.click(action);
 
     await waitFor(() => {
@@ -117,7 +120,7 @@ describe('List', () => {
   });
 
   test('delete product: error → toast.error', async () => {
-    const initialRows = [{ id: 202, name: 'KeepMe', category: 'Safe', price: 5.55, images: ['y.jpg'] }];
+    const initialRows = [{ id: 202, seller_id: seller.id, name: 'KeepMe', category: 'Safe', price: 5.55, images: ['y.jpg'] }];
 
     const sel1 = makeSelectChain(initialRows);
     supabase.from.mockReturnValueOnce({ select: sel1.select });
@@ -125,11 +128,11 @@ describe('List', () => {
     const delErr = makeDeleteChain(new Error('Cannot delete'));
     supabase.from.mockReturnValueOnce({ delete: delErr.delete });
 
-    render(<List token="t123" />);
+    render(<List user={seller} />);
 
     const rowName = await screen.findByText('KeepMe');
     const row = rowName.closest('div');
-    const action = within(row).getByText('X');
+    const action = within(row).getByText('×');
     fireEvent.click(action);
 
     await waitFor(() => {
