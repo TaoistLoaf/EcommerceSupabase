@@ -3,6 +3,9 @@ import { toast } from "react-toastify";
 import { assets } from "../assets/assets";
 import { currency } from "../App";
 import { supabase } from "../supabaseClient.js";
+import { createSellerOrderRepository } from "../infrastructure/orders/orderRepository.js";
+
+const orderRepository = createSellerOrderRepository(supabase);
 
 const ORDER_STATUS_OPTIONS = [
   "Order Placed",
@@ -194,18 +197,7 @@ const Orders = ({ token, user }) => {
     if (!token || !user?.id) return;
 
     try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // The database policy already scopes access, but the UI still filters orders
-      // down to the current seller's line items before rendering totals/actions.
-      const sellerOrders = (data || []).filter(
-        (order) => getSellerItems(order, user.id).length > 0
-      );
+      const sellerOrders = await orderRepository.findAll(user.id);
 
       setOrders(sellerOrders);
       setShippingDrafts(

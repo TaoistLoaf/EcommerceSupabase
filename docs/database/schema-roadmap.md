@@ -28,8 +28,10 @@ must have supporting indexes before traffic is moved to the normalized tables.
    order lines, single-seller fulfillment, and recognized cart lines.
 6. Compare row counts, seller ownership, money totals, and rental dates.
 7. Add dual-read application code and Edge Function contract tests. Email and
-   Shippo authorization now use the shared normalized-first adapter; payment,
-   reorder, buyer, seller, and admin readers remain migration targets.
+   Shippo authorization now use the shared normalized-first adapter, and
+   reorder writes normalized carts atomically. Buyer and seller order pages now
+   use normalized read models. Payment and future platform-admin order screens
+   remain migration targets.
 8. Switch all remaining reads, observe production, and only then validate
    deferred constraints.
 9. Remove legacy columns in a separate contract release.

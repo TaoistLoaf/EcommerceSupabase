@@ -2,6 +2,9 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import { ShopContext } from "../context/ShopContext";
 import Title from "../components/Title";
 import { supabase } from "../supabaseClient";
+import { createOrderRepository } from "../infrastructure/orders/orderRepository";
+
+const orderRepository = createOrderRepository(supabase);
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20];
 const ORDER_STATUS_OPTIONS = [
@@ -34,11 +37,6 @@ const Orders = () => {
 
     try {
       setLoading(true);
-      const baseSelect =
-        "id, items, status, payment, paymentmethod, date, created_at, buyer_id";
-      const ownerFilter = `buyer_id.eq.${user.id},user_id.eq.${user.id}`;
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
       const trimmedOrderId = orderIdSearch.trim();
       const searchedOrderId = trimmedOrderId ? Number(trimmedOrderId) : null;
 
@@ -48,50 +46,14 @@ const Orders = () => {
         return;
       }
 
-      // Apply filters before range so Supabase counts and returns the filtered page.
-      const applyFilters = (query) => {
-        let nextQuery = query.or(ownerFilter);
-
-        if (statusFilter) {
-          nextQuery = nextQuery.eq("status", statusFilter);
-        }
-        if (searchedOrderId) {
-          nextQuery = nextQuery.eq("id", searchedOrderId);
-        }
-
-        return nextQuery
-          .order("created_at", { ascending: false })
-          .range(from, to);
-      };
-
-      let {
-        data,
-        error,
-        count,
-      } = await applyFilters(
-        supabase
-          .from("orders")
-          .select(`${baseSelect}, shipping_tracking_number, shipping_tracking_url`, {
-            count: "exact",
-          })
-      );
-
-      if (error && error.message?.includes("shipping_tracking")) {
-        const fallback = await applyFilters(
-          supabase.from("orders").select(baseSelect, { count: "exact" })
-        );
-
-        data = fallback.data;
-        error = fallback.error;
-        count = fallback.count;
-      }
-
-      if (error) {
-        console.error("❌ Supabase fetch error:", error);
-        return;
-      }
-
-      const formattedOrders = (data || []).map((order) => ({
+      const result = await orderRepository.findBuyerOrders({
+        userId: user.id,
+        page,
+        pageSize,
+        status: statusFilter,
+        orderId: searchedOrderId,
+      });
+      const formattedOrders = result.orders.map((order) => ({
         id: order.id,
         status: order.status,
         payment: order.payment,
@@ -103,7 +65,7 @@ const Orders = () => {
       }));
 
       setOrderData(formattedOrders);
-      setTotalOrders(count || 0);
+      setTotalOrders(result.count);
     } catch (error) {
       console.error("🔥 loadOrderData error:", error);
     } finally {
@@ -130,10 +92,7 @@ const Orders = () => {
   const hasFilters = Boolean(statusFilter || orderIdSearch.trim());
   const shouldShowPagination = totalOrders > pageSize;
 
-  // ✅ Reorder feature
   const handleReorder = async (orderId) => {
-    console.log("🧠 Sending reorder request for order_id:", orderId);
-
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reorder`,
@@ -144,7 +103,6 @@ const Orders = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            user_id: userId,
             order_id: orderId,
           }),
         }

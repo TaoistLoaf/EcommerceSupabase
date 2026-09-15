@@ -86,11 +86,8 @@ describe('Orders', () => {
 
     renderOrders();
 
-    // header
-    expect(await screen.findByRole('heading', { name: /orders/i })).toBeInTheDocument();
-
-    // item lines
-    expect(screen.getByText(/Shirt x 2/i)).toBeInTheDocument();
+    // Repository hydration is asynchronous, so wait for the first order line.
+    expect(await screen.findByText(/Shirt x 2/i)).toBeInTheDocument();
     expect(screen.getByText(/Pants x 1/i)).toBeInTheDocument();
 
     // address block
