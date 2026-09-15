@@ -31,8 +31,45 @@ describe("seller order repository", () => {
 
     expect(supabase.from).toHaveBeenCalledWith("orders");
     expect(select.mock.calls[0][0]).toContain("order_items(");
+    expect(select.mock.calls[0][0]).toContain("seller_fulfillments(");
     expect(orders).toHaveLength(1);
     expect(orders[0].items[0].name).toBe("Mine");
+  });
+
+  test("updates the current seller fulfillment through the database RPC", async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: { order_status: "Shipped" },
+      error: null,
+    });
+    const repository = createSellerOrderRepository({ rpc });
+
+    const result = await repository.updateFulfillment({
+      orderId: 9,
+      status: "shipped",
+      trackingNumber: "TRACK-9",
+      trackingUrl: "https://tracking.example/9",
+    });
+
+    expect(rpc).toHaveBeenCalledWith("update_seller_fulfillment", {
+      p_order_id: 9,
+      p_status: "shipped",
+      p_tracking_number: "TRACK-9",
+      p_tracking_url: "https://tracking.example/9",
+    });
+    expect(result).toEqual({ order_status: "Shipped" });
+  });
+
+  test("surfaces fulfillment update failures", async () => {
+    const repository = createSellerOrderRepository({
+      rpc: jest.fn().mockResolvedValue({
+        data: null,
+        error: new Error("update failed"),
+      }),
+    });
+
+    await expect(
+      repository.updateFulfillment({ orderId: 9, status: "packing" })
+    ).rejects.toThrow("update failed");
   });
 
   test("surfaces query failures", async () => {

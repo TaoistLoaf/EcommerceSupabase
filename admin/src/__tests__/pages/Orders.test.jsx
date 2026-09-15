@@ -23,6 +23,7 @@ jest.mock('~/supabaseClient.js', () => ({
   __esModule: true,
   supabase: {
     from: jest.fn(), // configured per-test via supabase.from.mockReturnValueOnce
+    rpc: jest.fn(),
     functions: {
       invoke: jest.fn(),
     },
@@ -40,19 +41,13 @@ const makeSelectOrdersChain = (data, error = null) => {
   return { select, order };
 };
 
-const makeUpdateStatusChain = (error = null) => {
-  // .from('orders').update({ status }).eq('id', orderId)
-  const eq = jest.fn().mockResolvedValue({ error });
-  const update = jest.fn().mockReturnValue({ eq });
-  return { update, eq };
-};
-
 describe('Orders', () => {
   const sellerUser = { id: 'seller-1', email: 'seller@example.com' };
   const renderOrders = () => render(<Orders token="token-1" user={sellerUser} />);
 
   beforeEach(() => {
     jest.clearAllMocks();
+    supabase.rpc.mockResolvedValue({ data: { order_status: 'Packing' }, error: null });
     supabase.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
   });
 
@@ -154,11 +149,7 @@ describe('Orders', () => {
     const sel1 = makeSelectOrdersChain([initialOrder]);
     supabase.from.mockReturnValueOnce({ select: sel1.select });
 
-    // 2) UPDATE .eq()
-    const upd = makeUpdateStatusChain(null);
-    supabase.from.mockReturnValueOnce({ update: upd.update });
-
-    // 3) SELECT (after update refresh)
+    // 2) SELECT (after RPC update refresh)
     const sel2 = makeSelectOrdersChain([refreshedOrder]);
     supabase.from.mockReturnValueOnce({ select: sel2.select });
 
@@ -181,9 +172,12 @@ describe('Orders', () => {
       expect(screen.getAllByRole('combobox')[0]).toHaveValue('Packing');
     });
 
-    // verify the update chain received the right payload (status)
-    // We can't read inside the chain easily, but we can assert supabase.from called for update (2nd call)
-    expect(supabase.from).toHaveBeenNthCalledWith(2, 'orders');
+    expect(supabase.rpc).toHaveBeenCalledWith('update_seller_fulfillment', {
+      p_order_id: 7,
+      p_status: 'packing',
+      p_tracking_number: null,
+      p_tracking_url: null,
+    });
   });
 
   test('status update error → shows toast.error', async () => {
@@ -202,9 +196,10 @@ describe('Orders', () => {
     const sel1 = makeSelectOrdersChain([initialOrder]);
     supabase.from.mockReturnValueOnce({ select: sel1.select });
 
-    // 2) UPDATE returns error
-    const updErr = makeUpdateStatusChain(new Error('update boom'));
-    supabase.from.mockReturnValueOnce({ update: updErr.update });
+    supabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: new Error('update boom'),
+    });
 
     renderOrders();
 

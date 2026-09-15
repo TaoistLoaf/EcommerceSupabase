@@ -4,6 +4,7 @@ import { assets } from "../assets/assets";
 import { currency } from "../App";
 import { supabase } from "../supabaseClient.js";
 import { createSellerOrderRepository } from "../infrastructure/orders/orderRepository.js";
+import { toFulfillmentStatus } from "../domain/orders/orderItemReadModel.js";
 
 const orderRepository = createSellerOrderRepository(supabase);
 
@@ -202,11 +203,17 @@ const Orders = ({ token, user }) => {
       setOrders(sellerOrders);
       setShippingDrafts(
         sellerOrders.reduce((drafts, order) => {
+          const fulfillment = order.fulfillment || {};
           drafts[order.id] = {
             ...createDefaultDraft(user),
-            mode: order.shipping_provider === "shippo" ? "shippo" : "manual",
-            trackingNumber: order.shipping_tracking_number || "",
-            trackingUrl: order.shipping_tracking_url || "",
+            mode:
+              (fulfillment.shipping_provider || order.shipping_provider) === "shippo"
+                ? "shippo"
+                : "manual",
+            trackingNumber:
+              fulfillment.tracking_number || order.shipping_tracking_number || "",
+            trackingUrl:
+              fulfillment.tracking_url || order.shipping_tracking_url || "",
           };
           return drafts;
         }, {})
@@ -319,37 +326,36 @@ const Orders = ({ token, user }) => {
       );
 
       if (!confirmed) {
-        event.target.value = order.status;
+        event.target.value = order.sellerStatus || order.status;
         return;
       }
     }
 
     const shippingDraft = getDraft(orderId);
-    const updatePayload = {
-      status,
-      shipping_tracking_number: shippingDraft.trackingNumber.trim() || null,
-      shipping_tracking_url: shippingDraft.trackingUrl.trim() || null,
-    };
+    const fulfillmentStatus = toFulfillmentStatus(status);
 
     try {
       // Manual tracking details are saved with the status update so sellers can
       // fill tracking first and then mark the order as shipped in one action.
-      const { error } = await supabase
-        .from("orders")
-        .update(updatePayload)
-        .eq("id", orderId);
-
-      if (error) throw error;
+      const result = await orderRepository.updateFulfillment({
+        orderId,
+        status: fulfillmentStatus,
+        trackingNumber: shippingDraft.trackingNumber.trim() || null,
+        trackingUrl: shippingDraft.trackingUrl.trim() || null,
+      });
+      const aggregateStatus = result?.order_status || status;
 
       const eventType =
-        status === "Cancelled" ? "order_cancelled" : "order_status_updated";
+        aggregateStatus === "Cancelled"
+          ? "order_cancelled"
+          : "order_status_updated";
 
       const { data: emailData, error: emailError } =
         await supabase.functions.invoke("sendOrderEmails", {
           body: {
             orderId,
             eventType,
-            status,
+            status: aggregateStatus,
           },
         });
 
@@ -436,7 +442,7 @@ const Orders = ({ token, user }) => {
               <div className="flex flex-col gap-3">
                 <SelectField
                   label="Order status"
-                  value={order.status}
+                  value={order.sellerStatus || order.status}
                   onChange={(event) => statusHandler(event, order)}
                 >
                   {ORDER_STATUS_OPTIONS.map((status) => (
@@ -741,9 +747,13 @@ const Orders = ({ token, user }) => {
                       </>
                     )}
 
-                    {order.shipping_label_url && (
+                    {(order.fulfillment?.shipping_label_url ||
+                      order.shipping_label_url) && (
                       <a
-                        href={order.shipping_label_url}
+                        href={
+                          order.fulfillment?.shipping_label_url ||
+                          order.shipping_label_url
+                        }
                         target="_blank"
                         rel="noreferrer"
                         className="text-sm text-blue-600 underline"

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "@jest/globals";
 import {
   selectSellerOrderItems,
+  toFulfillmentStatus,
+  toOrderStatus,
   toSellerOrderReadModel,
 } from "~/domain/orders/orderItemReadModel.js";
 
@@ -72,5 +74,31 @@ describe("seller order item read model", () => {
 
     expect(result.source).toBe("order_items");
     expect(result.items[0].name).toBe("New");
+  });
+
+  test("attaches only the current seller fulfillment and exposes its status", () => {
+    const result = toSellerOrderReadModel(
+      {
+        status: "Shipped",
+        items: [{ seller_id: "seller-1", name: "Mine" }],
+        seller_fulfillments: [
+          { seller_id: "seller-1", status: "packing" },
+          { seller_id: "seller-2", status: "shipped" },
+        ],
+      },
+      "seller-1"
+    );
+
+    expect(result.fulfillment).toEqual({
+      seller_id: "seller-1",
+      status: "packing",
+    });
+    expect(result.sellerStatus).toBe("Packing");
+  });
+
+  test("maps UI and database fulfillment statuses explicitly", () => {
+    expect(toFulfillmentStatus("Out for delivery")).toBe("out_for_delivery");
+    expect(toOrderStatus("cancelled")).toBe("Cancelled");
+    expect(toFulfillmentStatus("Unknown")).toBeNull();
   });
 });

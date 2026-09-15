@@ -1,6 +1,28 @@
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
+const FULFILLMENT_STATUS_BY_ORDER_STATUS = {
+  "Order Placed": "pending",
+  Packing: "packing",
+  Shipped: "shipped",
+  "Out for delivery": "out_for_delivery",
+  Delivered: "delivered",
+  Cancelled: "cancelled",
+};
+
+const ORDER_STATUS_BY_FULFILLMENT_STATUS = Object.fromEntries(
+  Object.entries(FULFILLMENT_STATUS_BY_ORDER_STATUS).map(([orderStatus, status]) => [
+    status,
+    orderStatus,
+  ])
+);
+
+export const toFulfillmentStatus = (orderStatus) =>
+  FULFILLMENT_STATUS_BY_ORDER_STATUS[orderStatus] ?? null;
+
+export const toOrderStatus = (fulfillmentStatus) =>
+  ORDER_STATUS_BY_FULFILLMENT_STATUS[fulfillmentStatus] ?? null;
+
 const toSellerItem = (row) => {
   const snapshot = isRecord(row?.product_snapshot)
     ? row.product_snapshot
@@ -58,10 +80,15 @@ export const selectSellerOrderItems = (order, sellerId) => {
 
 export const toSellerOrderReadModel = (order, sellerId) => {
   const resolved = selectSellerOrderItems(order, sellerId);
+  const fulfillment = Array.isArray(order?.seller_fulfillments)
+    ? order.seller_fulfillments.find((row) => row?.seller_id === sellerId) ?? null
+    : null;
 
   return {
     ...order,
     items: resolved.items,
     itemsSource: resolved.source,
+    fulfillment,
+    sellerStatus: toOrderStatus(fulfillment?.status) ?? order?.status,
   };
 };
