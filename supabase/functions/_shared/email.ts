@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { hydrateOrderWithItems } from "./orderItems.js";
 
 export type SupabaseClient = ReturnType<typeof createClient>;
 
@@ -452,7 +453,10 @@ export const sendOrderEmails = async ({
     throw new Error(error?.message || "Order not found");
   }
 
-  const items = Array.isArray(order.items) ? (order.items as OrderItem[]) : [];
+  const hydratedOrder = await hydrateOrderWithItems(supabase, order);
+  const items = Array.isArray(hydratedOrder?.items)
+    ? (hydratedOrder.items as OrderItem[])
+    : [];
   const address = (order.address || {}) as OrderAddress;
   const currency = String(order.charge_currency || order.deposit_currency || "USD").toUpperCase();
   const siteUrl = Deno.env.get("SITE_URL") || Deno.env.get("FRONTEND_URL") || "https://www.reshareloop.com";

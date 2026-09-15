@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { hydrateOrderWithItems } from "../_shared/orderItems.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -174,7 +175,10 @@ serve(async (req) => {
       return json({ success: false, error: "Order not found" }, 404);
     }
 
-    const orderItems = Array.isArray(order.items) ? order.items : [];
+    const hydratedOrder = await hydrateOrderWithItems(supabase, order);
+    const orderItems = Array.isArray(hydratedOrder?.items)
+      ? hydratedOrder.items
+      : [];
     const sellerOwnsOrder = orderItems.some(
       (item) => item?.seller_id === authData.user.id
     );

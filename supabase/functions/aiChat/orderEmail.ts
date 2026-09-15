@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { escapeHtml, sendTransactionalEmail } from "../_shared/mailer.ts";
+import { hydrateOrderWithItems } from "../_shared/orderItems.js";
 import { SUPPORT_EMAIL } from "./knowledge.ts";
 
 type OrderItem = {
@@ -279,8 +280,10 @@ export const sendOrderSummaryEmail = async (
     throw new Error(error.message);
   }
 
-  const order = Array.isArray(data) ? (data[0] as OrderRow | undefined) : null;
-  if (!order) {
+  const legacyOrder = Array.isArray(data)
+    ? (data[0] as OrderRow | undefined)
+    : null;
+  if (!legacyOrder) {
     return {
       success: true,
       reply: requestedOrderId
@@ -290,6 +293,10 @@ export const sendOrderSummaryEmail = async (
     };
   }
 
+  const order = (await hydrateOrderWithItems(
+    userSupabase,
+    legacyOrder
+  )) as OrderRow;
   const serviceSupabase = createServiceClient();
   const result = await sendTransactionalEmail({
     supabase: serviceSupabase,

@@ -27,8 +27,11 @@ must have supporting indexes before traffic is moved to the normalized tables.
 5. Run `backfill_relational_data()` to backfill only deterministic identities,
    order lines, single-seller fulfillment, and recognized cart lines.
 6. Compare row counts, seller ownership, money totals, and rental dates.
-7. Add dual-read application code and Edge Function contract tests.
-8. Switch reads, observe production, and only then validate deferred constraints.
+7. Add dual-read application code and Edge Function contract tests. Email and
+   Shippo authorization now use the shared normalized-first adapter; payment,
+   reorder, buyer, seller, and admin readers remain migration targets.
+8. Switch all remaining reads, observe production, and only then validate
+   deferred constraints.
 9. Remove legacy columns in a separate contract release.
 
 ## Deferred cleanup

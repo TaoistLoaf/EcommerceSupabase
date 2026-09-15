@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { escapeHtml, sendTransactionalEmail } from "../_shared/mailer.ts";
+import { hydrateOrdersWithItems } from "../_shared/orderItems.js";
 import { SUPPORT_EMAIL } from "./knowledge.ts";
 
 type OrderItem = {
@@ -273,7 +274,11 @@ const fetchRecentOrders = async (
   }
 
   if (error) throw new Error(error.message);
-  return Array.isArray(data) ? (data as OrderRow[]) : [];
+  const orders = Array.isArray(data) ? (data as OrderRow[]) : [];
+  return (await hydrateOrdersWithItems(
+    userSupabase,
+    orders
+  )) as OrderRow[];
 };
 
 export const sendRecentOrderSummaryEmail = async (req: Request) => {
