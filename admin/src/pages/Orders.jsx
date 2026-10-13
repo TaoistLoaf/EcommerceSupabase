@@ -5,6 +5,7 @@ import { currency } from "../App";
 import { supabase } from "../supabaseClient.js";
 import { createSellerOrderRepository } from "../infrastructure/orders/orderRepository.js";
 import { toFulfillmentStatus } from "../domain/orders/orderItemReadModel.js";
+import { getFunctionErrorMessage } from "../infrastructure/functions/functionError.js";
 
 const orderRepository = createSellerOrderRepository(supabase);
 
@@ -265,7 +266,7 @@ const Orders = ({ token, user }) => {
     } catch (error) {
       console.error("Shippo rate error:", error);
       updateShippingDraft(orderId, { loadingRates: false });
-      toast.error(error.message || "Failed to get Shippo rates");
+      toast.error(await getFunctionErrorMessage(error, "Failed to get Shippo rates"));
     }
   };
 
@@ -313,7 +314,7 @@ const Orders = ({ token, user }) => {
     } catch (error) {
       console.error("Shippo label error:", error);
       updateShippingDraft(orderId, { purchasingLabel: false });
-      toast.error(error.message || "Failed to buy Shippo label");
+      toast.error(await getFunctionErrorMessage(error, "Failed to buy Shippo label"));
     }
   };
 

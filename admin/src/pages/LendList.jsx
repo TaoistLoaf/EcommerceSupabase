@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
+import { createSellerCatalogRepository } from "../infrastructure/catalog/sellerCatalogRepository.js";
+
+const catalogRepository = createSellerCatalogRepository(supabase);
 
 const LendList = ({ user }) => {
   const [items, setItems] = useState([]);
@@ -8,16 +11,7 @@ const LendList = ({ user }) => {
   // ---------------- Fetch Rental Items ----------------
   const fetchLendItems = async () => {
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("seller_id", user?.id)
-        .eq("listing_type", "rental")
-        .eq("catalog_section", "services")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setItems(data || []);
+      setItems(await catalogRepository.findRentalListings(user?.id));
     } catch (error) {
       console.error("Fetch error:", error);
       toast.error(error.message);
@@ -25,16 +19,13 @@ const LendList = ({ user }) => {
   };
 
   // ---------------- Delete Item ----------------
-  const removeItem = async (id) => {
+  const removeItem = async (item) => {
     try {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", id)
-        .eq("seller_id", user?.id)
-        .eq("listing_type", "rental")
-        .eq("catalog_section", "services");
-      if (error) throw error;
+      await catalogRepository.deleteRentalListing({
+        id: item.id,
+        sellerId: user?.id,
+        sourceTable: item.source_table,
+      });
 
       toast.success("Rental item deleted successfully!");
       fetchLendItems();
@@ -100,7 +91,7 @@ const LendList = ({ user }) => {
 
               {/* Action */}
               <button
-                onClick={() => removeItem(item.id)}
+                onClick={() => removeItem(item)}
                 className="text-red-500 text-center font-bold hover:text-red-700"
               >
                 ✕

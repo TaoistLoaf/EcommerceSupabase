@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import { currency } from "../App";
 import { toast } from "react-toastify";
 import { supabase } from "../supabaseClient";
+import { createSellerCatalogRepository } from "../infrastructure/catalog/sellerCatalogRepository.js";
+
+const catalogRepository = createSellerCatalogRepository(supabase);
 
 const List = ({ token, user }) => {
   const [list, setList] = useState([]);
@@ -9,15 +12,7 @@ const List = ({ token, user }) => {
   // ---------------- Fetch Seller’s Products ----------------
   const fetchList = async () => {
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("seller_id", user?.id)
-        .eq("catalog_section", "products")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setList(data);
+      setList(await catalogRepository.findSaleListings(user?.id));
     } catch (error) {
       console.error("Fetch list error:", error);
       toast.error(error.message);
@@ -58,8 +53,7 @@ const List = ({ token, user }) => {
   // ---------------- Remove Product ----------------
   const removeProduct = async (id) => {
     try {
-      const { error } = await supabase.from("products").delete().eq("id", id);
-      if (error) throw error;
+      await catalogRepository.deleteSaleListing({ id, sellerId: user?.id });
 
       toast.success("Product removed successfully!");
       await fetchList();

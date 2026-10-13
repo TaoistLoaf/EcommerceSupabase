@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { assets } from "../assets/assets";
 import { toast } from "react-toastify";
 import { supabase } from "../supabaseClient";
+import { createSellerCatalogRepository } from "../infrastructure/catalog/sellerCatalogRepository.js";
+
+const catalogRepository = createSellerCatalogRepository(supabase);
 
 const Lend = ({ user }) => {
   const [image1, setImage1] = useState(false);
@@ -40,25 +43,21 @@ const Lend = ({ user }) => {
         }
       }
 
-      const { error: insertError } = await supabase.from("products").insert([
-        {
-          seller_id: user?.id,
-          name,
-          description,
-          category,
-          images: imageUrls,
-          price: parseFloat(pricePerDay),
-          listing_type: "rental",
-          catalog_section: "services",
-          replacement_value: estimatedValue ? parseFloat(estimatedValue) : null,
-          max_rental_days: 30,
-          stock: 1,
-          bestseller,
-          sizes: [],
-        },
-      ]);
-
-      if (insertError) throw insertError;
+      await catalogRepository.createRentalListing({
+        seller_id: user?.id,
+        name,
+        description,
+        category,
+        images: imageUrls,
+        price: parseFloat(pricePerDay),
+        listing_type: "rental",
+        catalog_section: "services",
+        replacement_value: estimatedValue ? parseFloat(estimatedValue) : null,
+        max_rental_days: 30,
+        stock: 1,
+        bestseller,
+        sizes: [],
+      });
 
       toast.success("Lend item added successfully!");
 

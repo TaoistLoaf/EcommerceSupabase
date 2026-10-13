@@ -2,6 +2,9 @@ import React, { useState } from 'react'
 import { assets } from '../assets/assets'
 import { toast } from 'react-toastify'
 import { supabase } from '../supabaseClient'
+import { createSellerCatalogRepository } from '../infrastructure/catalog/sellerCatalogRepository.js'
+
+const catalogRepository = createSellerCatalogRepository(supabase)
 
 const Add = ({ token, user }) => {
   const categoryOptions = {
@@ -63,25 +66,21 @@ const Add = ({ token, user }) => {
       }
 
       // ✅ Insert new product linked to seller
-      const { error: insertError } = await supabase.from("products").insert([
-        {
-          name,
-          description,
-          price: parseFloat(price),
-          category,
-          sub_category: subCategory,
-          bestseller,
-          sizes,
-          images: imageUrls,
-          stock: parseInt(stock),
-          is_customizable: isCustomizable,
-          seller_id: user.id, // ✅ link product to current seller
-          listing_type: "sale",
-          catalog_section: "products",
-        },
-      ])
-
-      if (insertError) throw insertError
+      await catalogRepository.createSaleListing({
+        name,
+        description,
+        price: parseFloat(price),
+        category,
+        sub_category: subCategory,
+        bestseller,
+        sizes,
+        images: imageUrls,
+        stock: parseInt(stock),
+        is_customizable: isCustomizable,
+        seller_id: user.id,
+        listing_type: "sale",
+        catalog_section: "products",
+      })
 
       toast.success("✅ Product added successfully!", {autoClose: 600})
 

@@ -32,8 +32,12 @@ const makeSelectChain = (data, error = null) => {
 };
 
 const makeDeleteChain = (error = null) => {
-  const eq = jest.fn().mockResolvedValue({ error });
-  const del = jest.fn().mockReturnValue({ eq });
+  const query = {
+    then: (resolve) => Promise.resolve({ error }).then(resolve),
+  };
+  const eq = jest.fn().mockReturnValue(query);
+  query.eq = eq;
+  const del = jest.fn().mockReturnValue(query);
   return { delete: del, eq };
 };
 
@@ -64,7 +68,7 @@ describe('List', () => {
     expect(screen.getByText('Price')).toBeInTheDocument();
     expect(screen.getByText('Action')).toBeInTheDocument();
 
-    expect(screen.getByText('Widget A')).toBeInTheDocument();
+    expect(await screen.findByText('Widget A')).toBeInTheDocument();
     expect(screen.getByText('Widget B')).toBeInTheDocument();
     expect(screen.getByText('$12.34')).toBeInTheDocument();
     expect(screen.getByText('$56.78')).toBeInTheDocument();
