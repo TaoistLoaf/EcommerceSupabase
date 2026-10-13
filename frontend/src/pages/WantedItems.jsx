@@ -8,6 +8,10 @@ import React, {
 import { toast } from 'react-toastify';
 import { supabase } from '../supabaseClient';
 import { ShopContext } from '../context/ShopContext';
+import {
+  isMissingLikeCountColumnError,
+  normalizeRequestLikeCount,
+} from '../domain/requests/requestLikeCount';
 
 const ThumbIcon = ({ active }) => (
   <svg
@@ -54,29 +58,39 @@ const WantedItems = () => {
           setLoading(true);
         }
 
-        let query = supabase
-          .from('requests')
-          .select('id, item_name, like_count, created_at, image_url');
+        const executeQuery = async (countColumn) => {
+          let query = supabase
+            .from('requests')
+            .select(
+              `id, item_name, ${countColumn}, created_at, image_url`
+            );
 
-        if (debouncedSearch) {
-          query = query.ilike('item_name', `%${debouncedSearch}%`);
+          if (debouncedSearch) {
+            query = query.ilike('item_name', `%${debouncedSearch}%`);
+          }
+
+          if (sortBy === 'likes') {
+            query = query
+              .order(countColumn, { ascending: false })
+              .order('created_at', { ascending: true });
+          } else {
+            query = query.order('created_at', { ascending: false });
+          }
+
+          return query;
+        };
+
+        let { data, error } = await executeQuery('like_count');
+
+        if (isMissingLikeCountColumnError(error)) {
+          ({ data, error } = await executeQuery('likes'));
         }
-
-        if (sortBy === 'likes') {
-          query = query
-            .order('like_count', { ascending: false })
-            .order('created_at', { ascending: true });
-        } else {
-          query = query.order('created_at', { ascending: false });
-        }
-
-        const { data, error } = await query;
 
         if (error) {
           throw error;
         }
 
-        setRequests(data ?? []);
+        setRequests((data ?? []).map(normalizeRequestLikeCount));
         setOptimisticLikes({});
 
         if (userId) {

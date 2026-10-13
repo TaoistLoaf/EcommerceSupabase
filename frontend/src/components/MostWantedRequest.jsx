@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { supabase } from '../supabaseClient';
 import { ShopContext } from '../context/ShopContext';
+import {
+  isMissingLikeCountColumnError,
+  normalizeRequestLikeCount,
+} from '../domain/requests/requestLikeCount';
 
 const MostWantedRequest = () => {
   const { userId, navigate } = useContext(ShopContext);
@@ -36,29 +40,37 @@ const MostWantedRequest = () => {
       .map((token) => token.replace(/[^a-z0-9]/gi, ''))
       .filter((token) => token.length >= 3);
 
-    let query = supabase
-      .from('requests')
-      .select('id, item_name, like_count, created_at, image_url')
-      .order('like_count', { ascending: false })
-      .limit(5);
+    const executeQuery = async (countColumn) => {
+      let query = supabase
+        .from('requests')
+        .select(`id, item_name, ${countColumn}, created_at, image_url`)
+        .order(countColumn, { ascending: false })
+        .limit(5);
 
-    if (tokens.length > 0) {
-      const uniqueTokens = [...new Set(tokens)].slice(0, 4);
-      const orFilters = uniqueTokens
-        .map((token) => `item_name.ilike.%${token}%`)
-        .join(',');
-      query = query.or(orFilters);
-    } else {
-      query = query.ilike('item_name', `%${normalized}%`);
+      if (tokens.length > 0) {
+        const uniqueTokens = [...new Set(tokens)].slice(0, 4);
+        const orFilters = uniqueTokens
+          .map((token) => `item_name.ilike.%${token}%`)
+          .join(',');
+        query = query.or(orFilters);
+      } else {
+        query = query.ilike('item_name', `%${normalized}%`);
+      }
+
+      return query;
+    };
+
+    let { data, error } = await executeQuery('like_count');
+
+    if (isMissingLikeCountColumnError(error)) {
+      ({ data, error } = await executeQuery('likes'));
     }
-
-    const { data, error } = await query;
 
     if (error) {
       throw error;
     }
 
-    return data ?? [];
+    return (data ?? []).map(normalizeRequestLikeCount);
   };
 
   const createNewRequest = async (nameToCreate) => {
