@@ -208,13 +208,11 @@ const Orders = ({ token, user }) => {
           drafts[order.id] = {
             ...createDefaultDraft(user),
             mode:
-              (fulfillment.shipping_provider || order.shipping_provider) === "shippo"
+              fulfillment.shipping_provider === "shippo"
                 ? "shippo"
                 : "manual",
-            trackingNumber:
-              fulfillment.tracking_number || order.shipping_tracking_number || "",
-            trackingUrl:
-              fulfillment.tracking_url || order.shipping_tracking_url || "",
+            trackingNumber: fulfillment.tracking_number || "",
+            trackingUrl: fulfillment.tracking_url || "",
           };
           return drafts;
         }, {})
@@ -433,7 +431,7 @@ const Orders = ({ token, user }) => {
                 <p className="text-sm sm:text-[15px]">Items: {sellerItems.length}</p>
                 <p className="mt-3">Method: {order.paymentmethod || order.paymentMethod}</p>
                 <p>Payment: {order.payment ? "Done" : "Pending"}</p>
-                <p>Date: {formatDate(order.date)}</p>
+                <p>Date: {formatDate(order.created_at)}</p>
               </div>
 
               <p className="text-sm font-medium sm:text-[15px]">
@@ -751,13 +749,9 @@ const Orders = ({ token, user }) => {
                       </>
                     )}
 
-                    {(order.fulfillment?.shipping_label_url ||
-                      order.shipping_label_url) && (
+                    {order.fulfillment?.shipping_label_url && (
                       <a
-                        href={
-                          order.fulfillment?.shipping_label_url ||
-                          order.shipping_label_url
-                        }
+                        href={order.fulfillment.shipping_label_url}
                         target="_blank"
                         rel="noreferrer"
                         className="text-sm text-blue-600 underline"

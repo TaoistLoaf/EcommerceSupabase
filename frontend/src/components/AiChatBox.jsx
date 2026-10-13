@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { ShopContext } from "../context/ShopContext";
 import { supabase } from "../supabaseClient";
+import { isRentalListing } from "../domain/products/listingType";
 
 const starterPrompts = [
   "How does renting work?",
@@ -93,7 +94,7 @@ const AiChatBox = () => {
           category: currentProduct.category,
           subCategory: currentProduct.subCategory,
           price: `${currency}${currentProduct.price}`,
-          rentable: Boolean(currentProduct.rentable),
+          rentable: isRentalListing(currentProduct),
           stock: currentProduct.stock,
           description: currentProduct.description,
         },

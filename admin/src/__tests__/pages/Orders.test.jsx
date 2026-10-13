@@ -55,9 +55,9 @@ describe('Orders', () => {
     const order = {
       id: 1,
       order_number: '20260921214530-ABCDEF-00000001',
-      items: [
-        { name: 'Shirt', quantity: 2, size: 'M', seller_id: sellerUser.id, price: 50 },
-        { name: 'Pants', quantity: 1, size: 'L', seller_id: sellerUser.id, price: 49.99 },
+      order_items: [
+        { line_number: 1, product_name: 'Shirt', quantity: 2, size: 'M', seller_id: sellerUser.id, unit_amount: 50 },
+        { line_number: 2, product_name: 'Pants', quantity: 1, size: 'L', seller_id: sellerUser.id, unit_amount: 49.99 },
       ],
       address: {
         firstName: 'Ada',
@@ -71,7 +71,7 @@ describe('Orders', () => {
       },
       paymentmethod: 'Card',
       payment: true,
-      date: '2025-01-15T12:00:00.000Z',
+      created_at: '2025-01-15T12:00:00.000Z',
       amount: 149.99,
       status: 'Order Placed',
     };
@@ -97,8 +97,8 @@ describe('Orders', () => {
     expect(screen.getByText(/Method:\s*Card/)).toBeInTheDocument();
     expect(screen.getByText(/Payment:\s*Done/)).toBeInTheDocument();
 
-    // date uses toLocaleDateString -> compute expected in the same environment
-    const expectedDate = new Date(order.date).toLocaleDateString();
+    // created_at uses toLocaleDateString -> compute expected in the same environment
+    const expectedDate = new Date(order.created_at).toLocaleDateString();
     expect(screen.getByText(new RegExp(`Date\\s*:\\s*${expectedDate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))).toBeInTheDocument();
 
     // amount with currency
@@ -137,11 +137,11 @@ describe('Orders', () => {
   test('status update success → calls update, shows success toast, and re-fetches', async () => {
     const initialOrder = {
       id: 7,
-      items: [{ name: 'Hat', quantity: 1, size: 'One', seller_id: sellerUser.id, price: 25 }],
+      order_items: [{ line_number: 1, product_name: 'Hat', quantity: 1, size: 'One', seller_id: sellerUser.id, unit_amount: 25 }],
       address: { firstName: 'Grace', lastName: 'Hopper', street: '7 Navy Way', city: 'Arlington', state: 'VA', country: 'USA', zipcode: '22202', phone: '555-7777' },
       paymentmethod: 'PayPal',
       payment: false,
-      date: '2025-02-01T00:00:00.000Z',
+      created_at: '2025-02-01T00:00:00.000Z',
       amount: 25.0,
       status: 'Order Placed',
     };
@@ -187,11 +187,11 @@ describe('Orders', () => {
   test('status update error → shows toast.error', async () => {
     const initialOrder = {
       id: 9,
-      items: [{ name: 'Socks', quantity: 3, size: 'L', seller_id: sellerUser.id, price: 4 }],
+      order_items: [{ line_number: 1, product_name: 'Socks', quantity: 3, size: 'L', seller_id: sellerUser.id, unit_amount: 4 }],
       address: { firstName: 'Linus', lastName: 'Torvalds' },
       paymentmethod: 'Card',
       payment: false,
-      date: '2025-03-10T00:00:00.000Z',
+      created_at: '2025-03-10T00:00:00.000Z',
       amount: 12.5,
       status: 'Order Placed',
     };

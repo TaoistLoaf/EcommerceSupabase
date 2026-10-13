@@ -10,7 +10,6 @@ describe("seller order item read model", () => {
   test("uses normalized rows belonging to the current seller", () => {
     const order = {
       id: 7,
-      items: [{ seller_id: "seller-1", name: "Legacy" }],
       order_items: [
         {
           line_number: 1,
@@ -44,7 +43,7 @@ describe("seller order item read model", () => {
     ]);
   });
 
-  test("falls back if historical seller lines are incomplete", () => {
+  test("uses only normalized seller lines", () => {
     const order = {
       items: [
         { seller_id: "seller-1", name: "First" },
@@ -57,14 +56,13 @@ describe("seller order item read model", () => {
 
     const result = toSellerOrderReadModel(order, "seller-1");
 
-    expect(result.itemsSource).toBe("orders.items");
-    expect(result.items.map((item) => item.name)).toEqual(["First", "Second"]);
+    expect(result.itemsSource).toBe("order_items");
+    expect(result.items.map((item) => item.name)).toEqual(["First"]);
   });
 
   test("uses normalized seller rows when no legacy seller line exists", () => {
     const result = selectSellerOrderItems(
       {
-        items: [],
         order_items: [
           { line_number: 1, seller_id: "seller-1", product_name: "New" },
         ],
@@ -80,7 +78,7 @@ describe("seller order item read model", () => {
     const result = toSellerOrderReadModel(
       {
         status: "Shipped",
-        items: [{ seller_id: "seller-1", name: "Mine" }],
+        order_items: [{ seller_id: "seller-1", name: "Mine" }],
         seller_fulfillments: [
           { seller_id: "seller-1", status: "packing" },
           { seller_id: "seller-2", status: "shipped" },

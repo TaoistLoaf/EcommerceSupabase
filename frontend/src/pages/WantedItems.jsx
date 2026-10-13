@@ -56,7 +56,7 @@ const WantedItems = () => {
 
         let query = supabase
           .from('requests')
-          .select('id, item_name, likes, created_at, image_url');
+          .select('id, item_name, like_count, created_at, image_url');
 
         if (debouncedSearch) {
           query = query.ilike('item_name', `%${debouncedSearch}%`);
@@ -64,7 +64,7 @@ const WantedItems = () => {
 
         if (sortBy === 'likes') {
           query = query
-            .order('likes', { ascending: false })
+            .order('like_count', { ascending: false })
             .order('created_at', { ascending: true });
         } else {
           query = query.order('created_at', { ascending: false });
@@ -133,15 +133,6 @@ const WantedItems = () => {
           toast.info('You have already liked this request.');
           setLikedIds((prev) => new Set(prev).add(requestId));
         } else {
-          const { error: updateError } = await supabase
-            .from('requests')
-            .update({ likes: (currentLikes ?? 0) + 1 })
-            .eq('id', requestId);
-
-          if (updateError) {
-            throw updateError;
-          }
-
           toast.success('Thanks for supporting this request!');
           setLikedIds((prev) => {
             const next = new Set(prev);
@@ -163,16 +154,6 @@ const WantedItems = () => {
 
         if (deleteError) {
           throw deleteError;
-        }
-
-        const nextLikes = Math.max((currentLikes ?? 1) - 1, 0);
-        const { error: updateError } = await supabase
-          .from('requests')
-          .update({ likes: nextLikes })
-          .eq('id', requestId);
-
-        if (updateError) {
-          throw updateError;
         }
 
         toast.info('Removed your like.');
@@ -265,7 +246,7 @@ const WantedItems = () => {
             const isSaving = Boolean(liking[request.id]);
             const displayLikes = Math.max(
               0,
-              optimisticLikes[request.id] ?? request.likes ?? 0
+              optimisticLikes[request.id] ?? request.like_count ?? 0
             );
 
             return (

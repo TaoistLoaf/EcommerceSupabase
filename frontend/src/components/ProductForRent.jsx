@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import { ShopContext } from '../context/ShopContext'
 import Title from './Title';
 import ProductItem from './ProductItem';
+import { isRentalListing } from '../domain/products/listingType';
 
 const ProductForRent = () => {
 
@@ -10,7 +11,7 @@ const ProductForRent = () => {
 
   useEffect(() => {
     const rentProduct = products.filter(
-      (item) => item.rentable === true
+      (item) => item.catalog_section !== "services" && isRentalListing(item)
     );
     setProductsForRent(rentProduct);
   }, [products]);

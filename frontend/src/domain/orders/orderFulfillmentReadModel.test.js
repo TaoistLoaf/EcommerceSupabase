@@ -86,21 +86,21 @@ describe("buyer fulfillment read model", () => {
     assert.equal(order.displayStatus, "Processing");
   });
 
-  test("preserves one legacy shipment when relational data is unavailable", () => {
+  test("derives pending packages from normalized seller items", () => {
     const [order] = attachOrderFulfillmentReadModels(
       [
         {
           id: 11,
           status: "Shipped",
-          items: [{ name: "Legacy item" }],
-          shipping_tracking_number: "LEGACY-TRACK",
+          items: [{ seller_id: "seller-1", name: "Normalized item" }],
         },
       ],
       [],
       []
     );
 
-    assert.equal(order.fulfillmentsSource, "orders");
-    assert.equal(order.fulfillments[0].trackingNumber, "LEGACY-TRACK");
+    assert.equal(order.fulfillmentsSource, "seller_fulfillments");
+    assert.equal(order.fulfillments[0].sellerId, "seller-1");
+    assert.equal(order.fulfillments[0].status, "pending");
   });
 });

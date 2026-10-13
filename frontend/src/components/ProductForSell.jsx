@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react'
 import { ShopContext } from '../context/ShopContext'
 import Title from './Title';
 import ProductItem from './ProductItem';
+import { isRentalListing } from '../domain/products/listingType';
 
 const ProductForSell = () => {
 
@@ -10,7 +11,7 @@ const ProductForSell = () => {
 
     useEffect(() => {
     const filtered = products
-      .filter((item) => item.rentable === false)
+      .filter((item) => !isRentalListing(item))
       .slice(0, 10); 
 
     setLatestProducts(filtered);

@@ -28,7 +28,7 @@ describe("cart repository", () => {
   test("loads normalized cart lines for a user", async () => {
     const repository = createCartRepository(
       createLoadClient({
-        cart: { id: "cart-1", items: { "product-1": { M: 2 } } },
+        cart: { id: "cart-1" },
         rows: [
           {
             id: 1,

@@ -5,6 +5,7 @@ import { supabase } from "../supabaseClient";
 import { calculateCartAmount } from "../domain/cart/calculateCartAmount";
 import { setCartLineQuantity } from "../domain/cart/cartState";
 import { createCartRepository } from "../infrastructure/cart/cartRepository";
+import { isRentalListing } from "../domain/products/listingType";
 
 export const ShopContext = createContext();
 
@@ -58,7 +59,8 @@ const ShopContextProvider = (props) => {
     }
 
     const productSizes = Array.isArray(product.sizes) ? product.sizes : [];
-    const requiresSize = !product.rentable && productSizes.length > 0;
+    const isRental = isRentalListing(product);
+    const requiresSize = !isRental && productSizes.length > 0;
 
     // ✅ Only products with configured size options require size selection.
     if (requiresSize && (!size || size === "")) {
@@ -67,9 +69,9 @@ const ShopContextProvider = (props) => {
     }
 
     // ✅ 对租赁商品固定用 key 'rent'
-    let baseSizeKey = product.rentable ? "rent" : size || "One Size";
+    let baseSizeKey = isRental ? "rent" : size || "One Size";
     let sizeKey;
-    if (product.rentable && rentInfo?.startDate && rentInfo?.endDate) {
+    if (isRental && rentInfo?.startDate && rentInfo?.endDate) {
       const start = new Date(rentInfo.startDate).toISOString().split("T")[0];
       const end = new Date(rentInfo.endDate).toISOString().split("T")[0];
       sizeKey = `rent_${start}_to_${end}`; // ✅ 每个租期生成唯一 key
@@ -79,7 +81,7 @@ const ShopContextProvider = (props) => {
 
     let customizationPayload = null;
     if (
-      !product.rentable &&
+      !isRental &&
       product.is_customizable &&
       customization?.lines?.some((line) => line.trim().length > 0)
     ) {
@@ -101,7 +103,7 @@ const ShopContextProvider = (props) => {
     if (!cartData[itemId]) cartData[itemId] = {};
 
     // ✅ 如果是租赁商品，存入租赁信息
-    if (product.rentable) {
+    if (isRental) {
       cartData[itemId][sizeKey] = {
         quantity: 1,
         rentInfo: rentInfo || {},
@@ -206,23 +208,6 @@ const ShopContextProvider = (props) => {
   const isOAuthUser = (user) =>
     Boolean(user?.app_metadata?.provider && user.app_metadata.provider !== "email");
 
-  const syncPublicUser = async (authUser) => {
-    if (!authUser?.id || !authUser?.email) return;
-
-    const { error } = await supabase.from("users").upsert(
-      {
-        id: authUser.id,
-        email: authUser.email,
-        cartData: {},
-      },
-      { onConflict: "id" }
-    );
-
-    if (error) {
-      console.warn("Public user sync failed:", error.message || error);
-    }
-  };
-
   const sendOAuthWelcomeEmail = async (authUser) => {
     if (!authUser?.id || !authUser?.email || !isOAuthUser(authUser)) return;
 
@@ -261,7 +246,6 @@ const ShopContextProvider = (props) => {
 
   const syncOAuthUserAfterAuth = async (authUser) => {
     if (!isOAuthUser(authUser)) return;
-    await syncPublicUser(authUser);
     await sendOAuthWelcomeEmail(authUser);
   };
 
@@ -351,6 +335,8 @@ const ShopContextProvider = (props) => {
   };
 
   return (
+    // This provider predates the TypeScript migration; runtime children are supplied by App.
+    // eslint-disable-next-line react/prop-types
     <ShopContext.Provider value={value}>{props.children}</ShopContext.Provider>
   );
 };

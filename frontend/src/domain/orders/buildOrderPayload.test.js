@@ -13,7 +13,6 @@ test("builds the current persisted order contract", () => {
     paymentMethod: "stripe",
     userId: "buyer-1",
     checkoutRequestId: "checkout-1",
-    now: new Date("2026-08-31T12:00:00.000Z"),
   });
 
   assert.deepEqual(payload, {
@@ -24,8 +23,6 @@ test("builds the current persisted order contract", () => {
     paymentmethod: "stripe",
     payment: false,
     status: "Order Placed",
-    date: "2026-08-31T12:00:00.000Z",
-    user_id: "buyer-1",
     buyer_id: "buyer-1",
   });
 });

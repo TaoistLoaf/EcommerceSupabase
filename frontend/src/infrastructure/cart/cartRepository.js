@@ -1,7 +1,4 @@
-import {
-  selectReadableCart,
-  toCartLinePayload,
-} from "../../domain/cart/cartState.js";
+import { cartItemRowsToState, toCartLinePayload } from "../../domain/cart/cartState.js";
 
 const CART_ITEM_COLUMNS = [
   "id",
@@ -23,7 +20,7 @@ export const createCartRepository = (supabase) => ({
   async findByUserId(userId) {
     const { data: cart, error: cartError } = await supabase
       .from("carts")
-      .select("id,items")
+      .select("id")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -37,12 +34,11 @@ export const createCartRepository = (supabase) => ({
       .order("id", { ascending: true });
 
     throwIfError(itemError);
-    const readableCart = selectReadableCart({
-      normalizedRows: rows || [],
-      legacyItems: cart.items,
-    });
-
-    return { cartId: cart.id, ...readableCart };
+    return {
+      cartId: cart.id,
+      items: cartItemRowsToState(rows || []),
+      source: "normalized",
+    };
   },
 
   async saveLine({ productId, sizeKey, entry }) {

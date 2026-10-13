@@ -8,6 +8,7 @@ import { supabase } from "../supabaseClient";
 import CustomizationModal from "../components/CustomizationModal";
 import { toast } from "react-toastify";
 import { createCustomizationSnapshot } from "../domain/customizations/createCustomizationSnapshot";
+import { isRentalListing } from "../domain/products/listingType";
 
 const Product = () => {
   const { productId } = useParams();
@@ -40,7 +41,7 @@ const Product = () => {
     const { data, error } = await supabase
       .from("reviews")
       .select("*")
-      .eq("product_id", productId)
+      .eq("product_uuid", productId)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -93,7 +94,7 @@ const Product = () => {
       .from("reviews")
       .insert([
         {
-          product_id: productId,
+          product_uuid: productId,
           user_id: user.id,
           user_name: anonymous ? "Anonymous" : user.name || "Anonymous",
           comment: newComment,
@@ -198,7 +199,7 @@ const Product = () => {
             </p>
 
             {/* ---------- Select Size ---------- */}
-            {!productData.rentable && productData.sizes?.length > 0 && (
+            {!isRentalListing(productData) && productData.sizes?.length > 0 && (
               <div className="flex flex-col gap-4 my-8">
                 <p>Select Size</p>
                 <div className="flex gap-2">
@@ -247,7 +248,7 @@ const Product = () => {
               </div>
             )}
             {/* ---------- RentCalendar for rentable products ---------- */}
-            {productData.rentable && (
+            {isRentalListing(productData) && (
               <RentCalendar
                 dailyRate={20}
                 productPrice={productData.price}

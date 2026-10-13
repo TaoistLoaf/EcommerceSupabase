@@ -13,6 +13,7 @@ const List = ({ token, user }) => {
         .from("products")
         .select("*")
         .eq("seller_id", user?.id)
+        .eq("catalog_section", "products")
         .order("created_at", { ascending: false });
 
       if (error) throw error;

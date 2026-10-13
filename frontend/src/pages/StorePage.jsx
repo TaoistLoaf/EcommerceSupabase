@@ -4,13 +4,13 @@ import { supabase } from "../supabaseClient";
 import { toast } from "react-toastify";
 import ProductCard from "../components/ProductCard";
 import { assets } from "../assets/assets";
-import LendCard from "../components/ServiceCard";
+import { isRentalListing } from "../domain/products/listingType";
+import ServiceCard from "../components/ServiceCard";
 
 const StorePage = () => {
   const { sellerId } = useParams();
   const [seller, setSeller] = useState(null);
   const [products, setProducts] = useState([]);
-  const [lends, setLends] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // ---------------- Fetch all store data ----------------
@@ -36,17 +36,6 @@ const StorePage = () => {
 
       if (productError) throw productError;
       setProducts(productData || []);
-      console.log("Products data:", productData);
-      // 3️⃣ Fetch seller’s lend items
-      const { data: lendData, error: lendError } = await supabase
-        .from("lend_items")
-        .select("*")
-        .eq("seller_id", sellerId)
-        .order("created_at", { ascending: false });
-
-      if (lendError) throw lendError;
-      setLends(lendData || []);
-      console.log("Lend items data:", lendData);
     } catch (error) {
       console.error("Error loading store data:", error);
       toast.error("Failed to load store data");
@@ -106,10 +95,17 @@ const StorePage = () => {
         <h2 className="text-xl font-semibold mb-4 text-gray-900">
           Products for Sale
         </h2>
-        {products.filter((item) => !item.rentable).length > 0 ? (
+        {products.filter(
+          (item) =>
+            item.catalog_section !== "services" && !isRentalListing(item)
+        ).length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
             {products
-              .filter((item) => !item.rentable) // Filter items where isRentable is false
+              .filter(
+                (item) =>
+                  item.catalog_section !== "services" &&
+                  !isRentalListing(item)
+              )
               .map((item) => (
                 <ProductCard key={item.id} product={item} />
               ))}
@@ -124,10 +120,17 @@ const StorePage = () => {
         <h2 className="text-xl font-semibold mb-4 text-gray-900">
           Items for Rent
         </h2>
-        {products.filter((item) => item.rentable).length > 0 ? (
+        {products.filter(
+          (item) =>
+            item.catalog_section !== "services" && isRentalListing(item)
+        ).length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
             {products
-              .filter((item) => item.rentable) // Filter items where rentable is true
+              .filter(
+                (item) =>
+                  item.catalog_section !== "services" &&
+                  isRentalListing(item)
+              )
               .map((item) => (
                 <ProductCard
                   key={item.id}
@@ -144,26 +147,31 @@ const StorePage = () => {
         )}
       </div>
 
-      {/* 📦 Seller’s Lend Items */}
+      {/* 📦 Seller’s service listings (formerly lend_items) */}
       <div className="mb-12">
         <h2 className="text-xl font-semibold mb-4 text-gray-900">Services</h2>
-        {lends.length > 0 ? (
+        {products.filter((item) => item.catalog_section === "services").length >
+        0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-            {lends.map((item) => (
-              <LendCard
-                key={item.id}
-                product={{
-                  ...item,
-                  price: item.price_per_day,
-                  name: `${item.name} (Per Day)`,
-                }}
-              />
-            ))}
+            {products
+              .filter((item) => item.catalog_section === "services")
+              .map((item) => (
+                <ServiceCard
+                  key={item.id}
+                  product={{
+                    ...item,
+                    name: `${item.name} (Per Day)`,
+                  }}
+                />
+              ))}
           </div>
         ) : (
-          <p className="text-gray-500 text-sm">No items or services available.</p>
+          <p className="text-gray-500 text-sm">
+            No items or services available.
+          </p>
         )}
       </div>
+
     </div>
   );
 };

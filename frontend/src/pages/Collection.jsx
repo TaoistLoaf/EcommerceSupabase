@@ -3,6 +3,7 @@ import { ShopContext } from "../context/ShopContext";
 import { assets } from "../assets/assets";
 import Title from "../components/Title";
 import ProductItem from "../components/ProductItem";
+import { isRentalListing } from "../domain/products/listingType";
 
 const Collection = () => {
   const { products, search, showSearch } = useContext(ShopContext);
@@ -29,13 +30,14 @@ const Collection = () => {
   };
 
   const applyFilter = () => {
-    let productsCopy = products.slice().map((p) => ({
-      ...p,
-      rentable: !!p.rentable,
-      type: (p.type || (p.rentable ? "rentals" : "buy"))
-        .toString()
-        .toLowerCase(),
-    }));
+    let productsCopy = products
+      .filter((product) => product.catalog_section !== "services")
+      .map((p) => ({
+        ...p,
+        type: (p.type || (isRentalListing(p) ? "rentals" : "buy"))
+          .toString()
+          .toLowerCase(),
+      }));
 
     if (showSearch && search) {
       productsCopy = productsCopy.filter((item) =>

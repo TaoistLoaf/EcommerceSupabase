@@ -59,22 +59,21 @@ describe("order item read models", () => {
     });
   });
 
-  test("falls back when historical normalized lines are incomplete", () => {
-    const legacyItems = [{ name: "One" }, { name: "Two" }];
+  test("never reads the deprecated order snapshot", () => {
     const result = selectOrderItemReadModels({
-      legacyItems,
+      legacyItems: [{ name: "Legacy" }],
       normalizedRows: [{ line_number: 1, product_name: "One" }],
     });
 
-    assert.equal(result.source, "orders.items");
-    assert.equal(result.items, legacyItems);
+    assert.equal(result.source, "order_items");
+    assert.equal(result.items[0].name, "One");
   });
 
   test("attaches batched rows to their matching orders", () => {
     const result = attachOrderItemReadModels(
       [
-        { id: 10, items: [{ name: "Old one" }] },
-        { id: 11, items: [{ name: "Old two" }] },
+        { id: 10 },
+        { id: 11 },
       ],
       [
         { order_id: 11, line_number: 1, product_name: "New two" },

@@ -6,7 +6,6 @@ export const buildOrderPayload = ({
   paymentMethod,
   userId,
   checkoutRequestId,
-  now = new Date(),
 }) => ({
   checkout_request_id: checkoutRequestId,
   address,
@@ -15,7 +14,5 @@ export const buildOrderPayload = ({
   paymentmethod: paymentMethod,
   payment: false,
   status: "Order Placed",
-  date: now.toISOString(),
-  user_id: userId,
   buyer_id: userId,
 });

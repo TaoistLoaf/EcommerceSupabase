@@ -58,24 +58,16 @@ const toSellerItem = (row) => {
 };
 
 export const selectSellerOrderItems = (order, sellerId) => {
-  const legacyItems = Array.isArray(order?.items)
-    ? order.items.filter((item) => item?.seller_id === sellerId)
-    : [];
   const normalizedRows = Array.isArray(order?.order_items)
     ? order.order_items.filter((item) => item?.seller_id === sellerId)
     : [];
-  const normalizedCoversSeller =
-    normalizedRows.length > 0 &&
-    (legacyItems.length === 0 || normalizedRows.length === legacyItems.length);
 
-  return normalizedCoversSeller
-    ? {
-        items: [...normalizedRows]
-          .sort((left, right) => left.line_number - right.line_number)
-          .map(toSellerItem),
-        source: "order_items",
-      }
-    : { items: legacyItems, source: "orders.items" };
+  return {
+    items: [...normalizedRows]
+      .sort((left, right) => left.line_number - right.line_number)
+      .map(toSellerItem),
+    source: "order_items",
+  };
 };
 
 export const toSellerOrderReadModel = (order, sellerId) => {

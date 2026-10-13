@@ -81,23 +81,6 @@ const App = () => {
   const isOAuthUser = (authUser) =>
     Boolean(authUser?.app_metadata?.provider && authUser.app_metadata.provider !== "email");
 
-  const syncPublicUser = async (authUser) => {
-    if (!authUser?.id || !authUser?.email) return;
-
-    const { error } = await supabase.from("users").upsert(
-      {
-        id: authUser.id,
-        email: authUser.email,
-        cartData: {},
-      },
-      { onConflict: "id" }
-    );
-
-    if (error) {
-      console.warn("Public user sync failed:", error.message || error);
-    }
-  };
-
   const sendOAuthWelcomeEmail = async (authUser) => {
     if (!authUser?.id || !authUser?.email || !isOAuthUser(authUser)) return;
 
@@ -136,7 +119,6 @@ const App = () => {
 
   const syncOAuthUserAfterAuth = async (authUser) => {
     if (!isOAuthUser(authUser)) return;
-    await syncPublicUser(authUser);
     await sendOAuthWelcomeEmail(authUser);
   };
 

@@ -41,23 +41,26 @@ must have supporting indexes before traffic is moved to the normalized tables.
    purchase reservation. Buyer order history now presents independent seller
    shipments with batched reads. Payment and future platform-admin order
    screens remain migration targets.
-8. Switch all remaining reads, observe production, and only then validate
-   deferred constraints.
-9. Remove legacy columns in a separate contract release.
+8. All commerce runtime reads now use normalized tables. Migration
+   `20261006130000` performs the gated contract removal.
+9. Migration `20261006140000` expands/backfills the catalog and engagement
+   contract; `20261006150000` removes the old structures after application
+   rollout. Rentals move into `products`, reviews become UUID-only, request-like
+   counts become database-owned, orders keep one timestamp, and banners gain
+   explicit platform/seller scope.
 
-## Deferred cleanup
+## Remaining reviewed cleanup
 
 The following changes require verified data and are intentionally not forced yet:
 
-- Validate `public.users.id` and other `NOT VALID` foreign keys.
 - Make canonical identity and ownership fields `NOT NULL` where business rules require it.
-- Deduplicate request likes, then add `unique (request_id, user_id)`.
 - Resolve case-insensitive subscriber duplicates before adding a normalized-email unique key.
-- Remove `reviews.product_id` after all readers use `reviews.product_uuid`.
-- Remove JSON cart and order items after normalized dual-read verification.
-- Move global BannerControl out of the seller portal.
-- Remove `orders.order_id` only after all public and provider references use
-  `orders.order_number` or a provider-specific field.
+- Decide whether newsletter subscribers and wanted-item requests remain product
+  features before considering table removal. They are not schema duplicates.
+- Move platform BannerControl out of the seller portal UI. The database already
+  distinguishes platform banners from seller-owned banners.
 
 The exact contract-removal gates and release order are documented in
 [`legacy-contract-removal.md`](./legacy-contract-removal.md).
+The catalog and engagement contract is documented in
+[`catalog-engagement-consolidation.md`](./catalog-engagement-consolidation.md).

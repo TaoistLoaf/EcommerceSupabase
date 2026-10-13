@@ -60,23 +60,6 @@ const Login = () => {
     }
   };
 
-  const syncPublicUser = async (userId, userEmail = email) => {
-    if (!userId || !userEmail) return;
-
-    const { error } = await supabase.from("users").upsert(
-      {
-        id: userId,
-        email: userEmail,
-        cartData: {},
-      },
-      { onConflict: "id" }
-    );
-
-    if (error) {
-      console.warn("Public user sync failed:", error.message || error);
-    }
-  };
-
   const onSubmitHandler = async (event) => {
     event.preventDefault();
     try {
@@ -100,7 +83,6 @@ const Login = () => {
         if (userId) {
           localStorage.setItem("user_id", userId);
           setUserId(userId);
-          await syncPublicUser(userId);
           await sendWelcomeEmail(userId);
           console.log("user_id saved:", userId);
         } else {
@@ -231,7 +213,6 @@ const Login = () => {
           localStorage.setItem("user_id", userId);
           setUserId(userId);
           if (isOAuthUser(user)) {
-            await syncPublicUser(userId, userEmail);
             await sendWelcomeEmail(userId, userEmail, userName);
           }
         }

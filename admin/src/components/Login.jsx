@@ -60,23 +60,6 @@ const Login = ({ setToken }) => {
     }
   };
 
-  const syncPublicUser = async (userId, userEmail = email) => {
-    if (!userId || !userEmail) return;
-
-    const { error } = await supabase.from("users").upsert(
-      {
-        id: userId,
-        email: userEmail,
-        cartData: {},
-      },
-      { onConflict: "id" }
-    );
-
-    if (error) {
-      console.warn("Public user sync failed:", error.message || error);
-    }
-  };
-
   // -------------------- EMAIL LOGIN --------------------
   const onSubmitHandler = async (e) => {
     e.preventDefault();
@@ -113,7 +96,6 @@ const Login = ({ setToken }) => {
 
         if (userId) {
           localStorage.setItem("user_id", userId);
-          await syncPublicUser(userId);
           await sendWelcomeEmail(userId);
         }
 
@@ -228,7 +210,6 @@ const Login = ({ setToken }) => {
         if (sellerId) {
           localStorage.setItem("user_id", sellerId);
           if (isOAuthUser(user)) {
-            await syncPublicUser(sellerId, userEmail);
             await sendWelcomeEmail(sellerId, userEmail, userName);
           }
           // ✅ Auto redirect if already logged in

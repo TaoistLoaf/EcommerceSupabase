@@ -36,7 +36,7 @@ export const createSellerOrderRepository = (supabase) => ({
     const { data, error } = await supabase
       .from("orders")
       .select(
-        `*,order_items(${ORDER_ITEM_FIELDS}),seller_fulfillments(${SELLER_FULFILLMENT_FIELDS})`
+        `id,order_number,status,payment,paymentmethod,created_at,buyer_id,address,amount,shipping_fee,rent_subtotal,purchase_subtotal,deposit_total,charge_currency,order_items(${ORDER_ITEM_FIELDS}),seller_fulfillments(${SELLER_FULFILLMENT_FIELDS})`
       )
       .order("created_at", { ascending: false });
 

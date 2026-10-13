@@ -7,14 +7,12 @@ describe("seller order repository", () => {
       data: [
         {
           id: 1,
-          items: [],
           order_items: [
             { line_number: 1, seller_id: "seller-1", product_name: "Mine" },
           ],
         },
         {
           id: 2,
-          items: [],
           order_items: [
             { line_number: 1, seller_id: "seller-2", product_name: "Other" },
           ],

@@ -4,18 +4,11 @@ import { attachOrderFulfillmentReadModels } from "../../domain/orders/orderFulfi
 const ORDER_FIELDS = [
   "id",
   "order_number",
-  "items",
   "status",
   "payment",
   "paymentmethod",
-  "date",
   "created_at",
   "buyer_id",
-  "shipping_tracking_number",
-  "shipping_tracking_url",
-  "shipping_provider",
-  "shipping_carrier",
-  "shipping_service",
 ].join(",");
 
 const FULFILLMENT_FIELDS = [
@@ -55,7 +48,7 @@ export const createOrderRepository = (supabase) => ({
     let query = supabase
       .from("orders")
       .select(ORDER_FIELDS, { count: "exact" })
-      .or(`buyer_id.eq.${userId},user_id.eq.${userId}`);
+      .eq("buyer_id", userId);
 
     if (status) query = query.eq("status", status);
     if (orderId) {
@@ -90,21 +83,17 @@ export const createOrderRepository = (supabase) => ({
     const { data: itemRows, error: itemError } = itemResult;
     const { data: fulfillmentRows, error: fulfillmentError } = fulfillmentResult;
 
-    if (itemError) {
-      console.warn("Using legacy order items:", itemError.message);
-    }
-    if (fulfillmentError) {
-      console.warn("Using legacy order shipping:", fulfillmentError.message);
-    }
+    if (itemError) throw itemError;
+    if (fulfillmentError) throw fulfillmentError;
 
     const hydratedOrders = attachOrderItemReadModels(
       orders,
-      itemError ? [] : itemRows || []
+      itemRows || []
     );
     const sellerIds = [
       ...new Set(
         [
-          ...(fulfillmentError ? [] : fulfillmentRows || []).map(
+          ...(fulfillmentRows || []).map(
             (row) => row.seller_id
           ),
           ...hydratedOrders.flatMap((order) =>
@@ -130,7 +119,7 @@ export const createOrderRepository = (supabase) => ({
     return {
       orders: attachOrderFulfillmentReadModels(
         hydratedOrders,
-        fulfillmentError ? [] : fulfillmentRows || [],
+        fulfillmentRows || [],
         profiles
       ),
       count: count || 0,

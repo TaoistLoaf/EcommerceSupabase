@@ -1,16 +1,6 @@
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
-const hasCompleteNormalizedLines = (rows, legacyItemCount) => {
-  if (legacyItemCount === 0) return rows.length > 0;
-  if (rows.length !== legacyItemCount) return false;
-
-  return [...rows]
-    .map((row) => Number(row?.line_number))
-    .sort((left, right) => left - right)
-    .every((lineNumber, index) => lineNumber === index + 1);
-};
-
 export const toOrderItemReadModel = (row) => {
   const snapshot = isRecord(row?.product_snapshot)
     ? row.product_snapshot
@@ -46,13 +36,8 @@ export const toOrderItemReadModel = (row) => {
   };
 };
 
-export const selectOrderItemReadModels = ({ normalizedRows, legacyItems }) => {
+export const selectOrderItemReadModels = ({ normalizedRows }) => {
   const normalized = Array.isArray(normalizedRows) ? normalizedRows : [];
-  const legacy = Array.isArray(legacyItems) ? legacyItems : [];
-
-  if (!hasCompleteNormalizedLines(normalized, legacy.length)) {
-    return { items: legacy, source: "orders.items" };
-  }
 
   return {
     items: [...normalized]
@@ -74,7 +59,6 @@ export const attachOrderItemReadModels = (orders, normalizedRows) => {
   return (Array.isArray(orders) ? orders : []).map((order) => {
     const resolved = selectOrderItemReadModels({
       normalizedRows: rowsByOrderId.get(order.id),
-      legacyItems: order.items,
     });
 
     return {

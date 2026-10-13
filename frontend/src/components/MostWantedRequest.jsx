@@ -38,8 +38,8 @@ const MostWantedRequest = () => {
 
     let query = supabase
       .from('requests')
-      .select('id, item_name, likes, created_at, image_url')
-      .order('likes', { ascending: false })
+      .select('id, item_name, like_count, created_at, image_url')
+      .order('like_count', { ascending: false })
       .limit(5);
 
     if (tokens.length > 0) {
@@ -194,16 +194,7 @@ const MostWantedRequest = () => {
         throw likeError;
       }
 
-      if (!likeError) {
-        const { error: updateError } = await supabase
-          .from('requests')
-          .update({ likes: (request.likes ?? 0) + 1 })
-          .eq('id', request.id);
-
-        if (updateError) {
-          throw updateError;
-        }
-      } else {
+      if (likeError) {
         toast.info('You have already liked this request.');
       }
 
@@ -313,7 +304,7 @@ const MostWantedRequest = () => {
                       {request.item_name}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {request.likes ?? 0} likes · Added{' '}
+                      {request.like_count ?? 0} likes · Added{' '}
                       {new Date(request.created_at).toLocaleDateString()}
                     </p>
                   </div>

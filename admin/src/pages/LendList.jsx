@@ -9,9 +9,11 @@ const LendList = ({ user }) => {
   const fetchLendItems = async () => {
     try {
       const { data, error } = await supabase
-        .from("lend_items")
+        .from("products")
         .select("*")
         .eq("seller_id", user?.id)
+        .eq("listing_type", "rental")
+        .eq("catalog_section", "services")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -25,7 +27,13 @@ const LendList = ({ user }) => {
   // ---------------- Delete Item ----------------
   const removeItem = async (id) => {
     try {
-      const { error } = await supabase.from("lend_items").delete().eq("id", id);
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", id)
+        .eq("seller_id", user?.id)
+        .eq("listing_type", "rental")
+        .eq("catalog_section", "services");
       if (error) throw error;
 
       toast.success("Rental item deleted successfully!");
@@ -67,7 +75,7 @@ const LendList = ({ user }) => {
               {/* Image */}
               <img
                 className="w-14 h-14 object-cover rounded"
-                src={item.image_urls?.[0]}
+                src={item.images?.[0]}
                 alt={item.name}
               />
 
@@ -78,10 +86,10 @@ const LendList = ({ user }) => {
               <p>{item.category}</p>
 
               {/* Estimated Value */}
-              <p>${item.estimated_value?.toFixed(2) || "—"}</p>
+              <p>${item.replacement_value?.toFixed(2) || "—"}</p>
 
               {/* Price Per Day */}
-              <p>${item.price_per_day?.toFixed(2)}</p>
+              <p>${item.price?.toFixed(2)}</p>
 
               {/* Availability */}
               <p>

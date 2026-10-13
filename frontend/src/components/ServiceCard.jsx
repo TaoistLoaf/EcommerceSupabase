@@ -1,18 +1,16 @@
-// ProductCard.jsx
-import React from "react";
 import { Link } from "react-router-dom";
 import { assets } from "../assets/assets";
 
-const currency = "$"; // ✅ add this line
+const currency = "$";
 
-const LendCard = ({ product }) => {
-  return (
-    <div> 
-     <Link to={`/product/${product.id}`}
-     className="border rounded-lg shadow-sm hover:shadow-md transition p-3 flex flex-col"
-     >
+const ServiceCard = ({ product }) => (
+  <div>
+    <Link
+      to={`/product/${product.id}`}
+      className="border rounded-lg shadow-sm hover:shadow-md transition p-3 flex flex-col"
+    >
       <img
-        src={product.image_urls?.[0] || assets.placeholder_img}
+        src={product.images?.[0] || assets.placeholder_img}
         alt={product.name}
         className="w-full h-48 object-cover rounded"
       />
@@ -26,10 +24,8 @@ const LendCard = ({ product }) => {
           {product.price}
         </p>
       </div>
-
     </Link>
-    </div>
-  );
-};
+  </div>
+);
 
-export default LendCard;
+export default ServiceCard;

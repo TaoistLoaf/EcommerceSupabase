@@ -12,6 +12,7 @@ const BannerAlert = () => {
         .from("banner")
         .select("*")
         .eq("active", true)
+        .eq("scope", "platform")
         .order("updated_at", { ascending: false })
         .limit(1)
         .single();

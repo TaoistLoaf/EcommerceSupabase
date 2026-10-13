@@ -13,6 +13,7 @@ const BannerControl = () => {
       const { data, error } = await supabase
         .from("banner")
         .select("*")
+        .eq("scope", "platform")
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -30,6 +31,7 @@ const BannerControl = () => {
             {
               message: "",
               active: false,
+              scope: "platform",
               updated_at: new Date(),
             },
           ])
@@ -113,4 +115,3 @@ const BannerControl = () => {
 };
 
 export default BannerControl;
-

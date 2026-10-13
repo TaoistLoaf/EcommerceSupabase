@@ -76,6 +76,8 @@ const Add = ({ token, user }) => {
           stock: parseInt(stock),
           is_customizable: isCustomizable,
           seller_id: user.id, // ✅ link product to current seller
+          listing_type: "sale",
+          catalog_section: "products",
         },
       ])
 

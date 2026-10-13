@@ -11,28 +11,30 @@ psql "$DATABASE_URL" --set ON_ERROR_STOP=1 \
   --file supabase/verification/20260921181000_legacy_contract_readiness.sql
 ```
 
-## Current gates
+## Completed contract cutover
 
-| Legacy structure | Canonical replacement | Remaining gate before removal |
+| Removed legacy structure | Canonical replacement | Enforcement |
 | --- | --- | --- |
-| `orders.items` | `order_items` | Remove normalized-first fallback readers and prove line-count and money reconciliation. |
-| `carts.items` | `cart_items` | Storefront writes now use `set_normalized_cart_line`; migrate reorder and fallback reads, observe production, then remove the deprecated `set_cart_line(..., p_legacy_items)` overload. |
-| Shared shipping fields on `orders` | `seller_fulfillments` | Backfill every `(order_id, seller_id)` and remove email/UI fallbacks. |
-| `orders.user_id` | `orders.buyer_id` | Resolve every missing buyer, update all policies/functions, then enforce `buyer_id not null`. |
-| `orders.order_id` | `orders.order_number` plus provider-specific payment fields | Inventory provider references and move every public lookup to `order_number`. |
-| `public.users` | `auth.users`, `profiles`, and `carts` | Move the final compatibility reads and validate identity foreign keys. |
+| `orders.items` | `order_items` | Migration aborts on line-count mismatch. |
+| `carts.items` | `cart_items` | Only `set_normalized_cart_line` remains writable. |
+| Shared shipping fields on `orders` | `seller_fulfillments` | Every order/seller pair must exist before cutover. |
+| `orders.user_id` | `orders.buyer_id` | Buyer policies use UUID ownership only. |
+| `orders.order_id` | `orders.order_number` | Public lookup and reorder use the immutable formatted number. |
+| `public.users` | `auth.users`, `profiles`, and `carts` | Auth trigger maintains profiles and roles directly. |
+| `customizations` | `cart_items.customization`, `order_items.customization` | Immutable snapshots travel with the commerce line. |
+| `order_email_events` | `email_events` | One idempotent delivery log remains. |
+| `lend_items` | `products.listing_type = 'rental'` | Sale and rental inventory share one catalog. |
+| `reviews.product_id` | `reviews.product_uuid` | Review ownership is a required UUID foreign key. |
+| `requests.likes` | `request_likes` + `requests.like_count` | A trigger owns the cached count. |
+| `orders.date` | `orders.created_at` | One order creation timestamp remains. |
 
 ## Release sequence
 
-1. Deploy additive migrations and compatible readers.
-2. Run idempotent backfill in staging, then production.
-   Run `backfill_relational_data()` first and
-   `backfill_missing_seller_fulfillments()` second.
-3. Save the reconciliation output with the release evidence.
-4. Stop all legacy writes and observe at least one normal release window.
-5. Remove fallback reads.
-6. Validate deferred constraints and make required canonical fields non-null.
-7. Drop legacy columns/tables in a separate reversible contract release.
+The additive and backfill stages are complete in migration history. For the
+production contract release, follow
+[`normalized-commerce-cutover.md`](./normalized-commerce-cutover.md). The
+`20261006130000` migration reruns critical reconciliation gates before dropping
+anything and keeps a restricted rollback snapshot.
 
 Payment rows are currently test-mode evidence. Missing `order_payments` rows are
 reported, not automatically created, because inventing payment history would be

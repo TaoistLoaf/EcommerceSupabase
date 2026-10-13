@@ -23,21 +23,6 @@ const getSizeKey = (row) => {
     : row.line_key;
 };
 
-export const normalizeLegacyCart = (items) => {
-  if (!items) return {};
-  if (!Array.isArray(items)) return items;
-
-  return items.reduce((cart, item) => {
-    if (!item?.id) return cart;
-
-    const productId = String(item.id);
-    const sizeKey = item.size_key || item.size || "One Size";
-    if (!cart[productId]) cart[productId] = {};
-    cart[productId][sizeKey] = item.quantity || 1;
-    return cart;
-  }, {});
-};
-
 export const setCartLineQuantity = (
   cartItems,
   productId,
@@ -120,25 +105,3 @@ export const cartItemRowsToState = (rows) =>
 
     return cart;
   }, {});
-
-const cartLineKeys = (cartItems) =>
-  Object.entries(cartItems || {}).flatMap(([productId, sizes]) =>
-    Object.entries(sizes || {})
-      .filter(([, entry]) =>
-        asPositiveInteger(typeof entry === "object" ? entry?.quantity : entry)
-      )
-      .map(([sizeKey]) => `${productId}:${sizeKey}`)
-  );
-
-export const selectReadableCart = ({ normalizedRows, legacyItems }) => {
-  const normalizedCart = cartItemRowsToState(normalizedRows || []);
-  const legacyCart = normalizeLegacyCart(legacyItems);
-  const normalizedKeys = new Set(cartLineKeys(normalizedCart));
-  const legacyKeys = cartLineKeys(legacyCart);
-  const coversLegacy = legacyKeys.every((key) => normalizedKeys.has(key));
-
-  return {
-    items: coversLegacy ? normalizedCart : legacyCart,
-    source: coversLegacy ? "normalized" : "legacy-fallback",
-  };
-};

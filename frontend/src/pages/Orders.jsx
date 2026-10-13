@@ -3,6 +3,7 @@ import { ShopContext } from "../context/ShopContext";
 import Title from "../components/Title";
 import { supabase } from "../supabaseClient";
 import { createOrderRepository } from "../infrastructure/orders/orderRepository";
+import { toast } from "react-toastify";
 
 const orderRepository = createOrderRepository(supabase);
 
@@ -52,7 +53,7 @@ const Orders = () => {
         status: order.displayStatus || order.status,
         payment: order.payment,
         paymentmethod: order.paymentmethod,
-        date: order.date || order.created_at,
+        createdAt: order.created_at,
         items: order.items || [],
         shipments: order.fulfillments || [],
       }));
@@ -85,7 +86,7 @@ const Orders = () => {
   const hasFilters = Boolean(statusFilter || orderIdSearch.trim());
   const shouldShowPagination = totalOrders > pageSize;
 
-  const handleReorder = async (orderId) => {
+  const handleReorder = async (orderNumber) => {
     try {
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reorder`,
@@ -96,7 +97,7 @@ const Orders = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            order_id: orderId,
+            orderNumber,
           }),
         }
       );
@@ -104,15 +105,15 @@ const Orders = () => {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert("🛒 Items added to your cart!");
+        toast.success("Items added to your cart!");
         await getUserCart(userId);
         navigate("/cart");
       } else {
-        alert(data.message || "Reorder failed");
+        toast.error(data.message || "Reorder failed");
       }
     } catch (err) {
       console.error("handleReorder error:", err);
-      alert("Reorder failed: " + err.message);
+      toast.error("Reorder failed: " + err.message);
     }
   };
 
@@ -201,7 +202,7 @@ const Orders = () => {
               <p className="font-semibold mb-2">
                 Order #{order.orderNumber}{" "}
                 <span className="text-sm text-gray-500 ml-2">
-                  {new Date(order.date).toLocaleDateString()}
+                  {new Date(order.createdAt).toLocaleDateString()}
                 </span>
               </p>
 
@@ -242,7 +243,7 @@ const Orders = () => {
                   <span className="font-medium text-black">{order.status}</span>
                 </p>
                 <button
-                  onClick={() => handleReorder(order.id)}
+                  onClick={() => handleReorder(order.orderNumber)}
                   className="border px-4 py-2 text-sm font-medium rounded-sm text-green-600 hover:bg-green-50"
                 >
                   Reorder

@@ -9,7 +9,9 @@ const RelatedProducts = ({ category, subCategory }) => {
 
   useEffect(() => {
     if (products.length > 0) {
-      let productsCopy = products.slice();
+      let productsCopy = products.filter(
+        (product) => product.catalog_section !== "services"
+      );
 
       productsCopy = productsCopy.filter((item) => category === item.category);
       productsCopy = productsCopy.filter(

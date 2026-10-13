@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { describe, test } from "vitest";
 import {
   cartItemRowsToState,
-  normalizeLegacyCart,
-  selectReadableCart,
   setCartLineQuantity,
   toCartLinePayload,
 } from "./cartState.js";
@@ -90,37 +88,11 @@ describe("cart state mapping", () => {
     );
   });
 
-  test("falls back when normalized rows do not cover every legacy line", () => {
-    const result = selectReadableCart({
-      normalizedRows: [
-        {
-          product_id: "product-1",
-          line_key: "product-1:M",
-          quantity: 1,
-        },
-      ],
-      legacyItems: { "product-1": { M: 1 }, "product-2": { L: 1 } },
-    });
-
-    assert.equal(result.source, "legacy-fallback");
-    assert.deepEqual(result.items, {
-      "product-1": { M: 1 },
-      "product-2": { L: 1 },
-    });
-  });
-
   test("removes empty lines and product buckets immutably", () => {
     const original = { "product-1": { M: 1 } };
     const result = setCartLineQuantity(original, "product-1", "M", 0);
 
     assert.deepEqual(result, {});
     assert.deepEqual(original, { "product-1": { M: 1 } });
-  });
-
-  test("normalizes the legacy reorder array shape", () => {
-    assert.deepEqual(
-      normalizeLegacyCart([{ id: "product-1", size: "L", quantity: 2 }]),
-      { "product-1": { L: 2 } }
-    );
   });
 });

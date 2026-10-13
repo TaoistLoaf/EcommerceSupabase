@@ -24,8 +24,10 @@ import { supabase } from '~/supabaseClient';
 // --- Helpers to build the supabase method chains ---
 const makeSelectChain = (data, error = null) => {
   const order = jest.fn().mockResolvedValue({ data, error });
-  const eq = jest.fn().mockReturnValue({ order });
-  const select = jest.fn().mockReturnValue({ eq });
+  const query = { order };
+  const eq = jest.fn().mockReturnValue(query);
+  query.eq = eq;
+  const select = jest.fn().mockReturnValue(query);
   return { select, eq, order };
 };
 

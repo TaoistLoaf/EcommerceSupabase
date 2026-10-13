@@ -47,20 +47,6 @@ const sellerName = (sellerId, profilesById) =>
   profilesById.get(sellerId)?.name ||
   (sellerId ? `Seller ${sellerId.slice(0, 8)}` : "Order shipment");
 
-const legacyShipment = (order) => ({
-  sellerId: null,
-  sellerName: "Order shipment",
-  status: null,
-  statusLabel: order.status || "Order Placed",
-  items: order.items || [],
-  trackingNumber: order.shipping_tracking_number || "",
-  trackingUrl: order.shipping_tracking_url || "",
-  provider: order.shipping_provider || "",
-  carrier: order.shipping_carrier || "",
-  service: order.shipping_service || "",
-  source: "orders",
-});
-
 export const attachOrderFulfillmentReadModels = (
   orders,
   fulfillmentRows,
@@ -78,15 +64,6 @@ export const attachOrderFulfillmentReadModels = (
 
   return (Array.isArray(orders) ? orders : []).map((order) => {
     const rows = fulfillmentsByOrderId.get(order.id) || [];
-    if (!rows.length) {
-      return {
-        ...order,
-        displayStatus: order.status || "Order Placed",
-        fulfillments: [legacyShipment(order)],
-        fulfillmentsSource: "orders",
-      };
-    }
-
     const rowsBySellerId = new Map(rows.map((row) => [row.seller_id, row]));
     const sellerIds = new Set([
       ...rowsBySellerId.keys(),

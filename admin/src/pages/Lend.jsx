@@ -40,17 +40,21 @@ const Lend = ({ user }) => {
         }
       }
 
-      const { error: insertError } = await supabase.from("lend_items").insert([
+      const { error: insertError } = await supabase.from("products").insert([
         {
           seller_id: user?.id,
           name,
           description,
           category,
-          image_urls: imageUrls,
-          estimated_value: estimatedValue ? parseFloat(estimatedValue) : null,
-          price_per_day: parseFloat(pricePerDay),
+          images: imageUrls,
+          price: parseFloat(pricePerDay),
+          listing_type: "rental",
+          catalog_section: "services",
+          replacement_value: estimatedValue ? parseFloat(estimatedValue) : null,
           max_rental_days: 30,
           stock: 1,
+          bestseller,
+          sizes: [],
         },
       ]);
 
