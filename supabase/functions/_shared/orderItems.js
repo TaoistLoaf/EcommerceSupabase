@@ -19,17 +19,6 @@ export const ORDER_ITEM_SELECT_FIELDS = [
 const isRecord = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
-const normalizedLineNumbersAreComplete = (rows, legacyItemCount) => {
-  if (legacyItemCount === 0) return rows.length > 0;
-  if (rows.length !== legacyItemCount) return false;
-
-  const lineNumbers = rows
-    .map((row) => Number(row?.line_number))
-    .sort((left, right) => left - right);
-
-  return lineNumbers.every((lineNumber, index) => lineNumber === index + 1);
-};
-
 export const toOrderItemSnapshot = (row) => {
   const snapshot = isRecord(row?.product_snapshot)
     ? row.product_snapshot
@@ -65,20 +54,15 @@ export const toOrderItemSnapshot = (row) => {
   };
 };
 
-export const resolveOrderItems = ({ normalizedRows, legacyItems }) => {
+export const resolveOrderItems = ({ normalizedRows }) => {
   const normalized = Array.isArray(normalizedRows) ? normalizedRows : [];
-  const legacy = Array.isArray(legacyItems) ? legacyItems : [];
 
-  if (normalizedLineNumbersAreComplete(normalized, legacy.length)) {
-    return {
-      items: [...normalized]
-        .sort((left, right) => left.line_number - right.line_number)
-        .map(toOrderItemSnapshot),
-      source: "order_items",
-    };
-  }
-
-  return { items: legacy, source: "orders.items" };
+  return {
+    items: [...normalized]
+      .sort((left, right) => left.line_number - right.line_number)
+      .map(toOrderItemSnapshot),
+    source: "order_items",
+  };
 };
 
 export const hydrateOrdersWithItems = async (supabase, orders) => {
@@ -92,9 +76,7 @@ export const hydrateOrdersWithItems = async (supabase, orders) => {
     .in("order_id", orderIds)
     .order("line_number", { ascending: true });
 
-  if (error) {
-    console.warn("Falling back to legacy orders.items:", error.message);
-  }
+  if (error) throw error;
 
   const rowsByOrderId = new Map();
   for (const row of Array.isArray(data) ? data : []) {
@@ -105,8 +87,7 @@ export const hydrateOrdersWithItems = async (supabase, orders) => {
 
   return orderRows.map((order) => {
     const resolved = resolveOrderItems({
-      normalizedRows: error ? [] : rowsByOrderId.get(order.id),
-      legacyItems: order.items,
+      normalizedRows: rowsByOrderId.get(order.id),
     });
 
     return {

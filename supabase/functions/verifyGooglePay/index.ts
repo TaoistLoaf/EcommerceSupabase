@@ -85,7 +85,7 @@ serve(async (req) => {
     .from("orders")
     .select("id, amount")
     .eq("id", Number(orderId))
-    .or(`buyer_id.eq.${authData.user.id},user_id.eq.${authData.user.id}`)
+    .eq("buyer_id", authData.user.id)
     .single();
 
   if (orderError || !order) {

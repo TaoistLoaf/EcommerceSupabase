@@ -48,7 +48,7 @@ serve(async (req) => {
     let orderQuery = supabase
       .from("orders")
       .select("id, order_number, status, payment")
-      .or(`buyer_id.eq.${authData.user.id},user_id.eq.${authData.user.id}`);
+      .eq("buyer_id", authData.user.id);
     orderQuery = orderNumber
       ? orderQuery.eq("order_number", String(orderNumber).trim().toUpperCase())
       : orderQuery.eq("id", orderId);

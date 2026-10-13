@@ -8,7 +8,6 @@ import {
 describe("resolveOrderItems", () => {
   it("prefers complete normalized order lines", () => {
     const result = resolveOrderItems({
-      legacyItems: [{ id: "legacy-product", name: "Legacy name" }],
       normalizedRows: [
         {
           line_number: 1,
@@ -37,36 +36,18 @@ describe("resolveOrderItems", () => {
     ]);
   });
 
-  it("falls back when historical normalized lines are incomplete", () => {
-    const legacyItems = [
-      { id: "product-1", name: "First" },
-      { id: "product-2", name: "Second" },
-    ];
-
+  it("ignores deprecated order snapshots", () => {
     const result = resolveOrderItems({
-      legacyItems,
+      legacyItems: [{ id: "legacy-product", name: "Legacy" }],
       normalizedRows: [{ line_number: 1, product_name: "First" }],
     });
 
-    expect(result).toEqual({ items: legacyItems, source: "orders.items" });
-  });
-
-  it("falls back when normalized line numbers contain a gap", () => {
-    const legacyItems = [{ name: "First" }, { name: "Second" }];
-    const result = resolveOrderItems({
-      legacyItems,
-      normalizedRows: [
-        { line_number: 1, product_name: "First" },
-        { line_number: 3, product_name: "Third" },
-      ],
-    });
-
-    expect(result.source).toBe("orders.items");
+    expect(result.source).toBe("order_items");
+    expect(result.items[0].name).toBe("First");
   });
 
   it("uses normalized lines when no legacy snapshot exists", () => {
     const result = resolveOrderItems({
-      legacyItems: null,
       normalizedRows: [{ line_number: 1, product_name: "Only source" }],
     });
 
@@ -148,8 +129,8 @@ describe("hydrateOrdersWithItems", () => {
     });
 
     const orders = await hydrateOrdersWithItems(client, [
-      { id: 10, items: [{ name: "Legacy first" }] },
-      { id: 11, items: [{ name: "Legacy second" }] },
+      { id: 10 },
+      { id: 11 },
     ]);
 
     expect(client.from).toHaveBeenCalledOnce();
@@ -164,23 +145,16 @@ describe("hydrateOrdersWithItems", () => {
     );
   });
 
-  it("preserves legacy items when the normalized query fails", async () => {
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+  it("surfaces normalized query failures", async () => {
     const { client } = createSupabase({
       data: null,
       error: { message: "temporary database error" },
     });
 
-    const [order] = await hydrateOrdersWithItems(client, [
-      { id: 12, items: [{ name: "Legacy item" }] },
-    ]);
-
-    expect(order.items).toEqual([{ name: "Legacy item" }]);
-    expect(order.items_source).toBe("orders.items");
-    expect(warning).toHaveBeenCalledWith(
-      "Falling back to legacy orders.items:",
-      "temporary database error"
+    await expect(
+      hydrateOrdersWithItems(client, [{ id: 12 }])
+    ).rejects.toMatchObject(
+      { message: "temporary database error" }
     );
-    warning.mockRestore();
   });
 });

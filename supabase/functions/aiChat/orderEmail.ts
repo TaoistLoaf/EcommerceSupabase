@@ -24,39 +24,18 @@ type OrderRow = {
   items?: OrderItem[];
   amount?: number | string;
   status?: string;
-  date?: string;
   created_at?: string;
   payment?: boolean;
   paymentmethod?: string;
   charge_currency?: string;
   deposit_currency?: string;
-  shipping_tracking_number?: string | null;
-  shipping_tracking_url?: string | null;
 };
 
 const SELECT_ORDER_FIELDS = [
   "id",
   "order_number",
-  "items",
   "amount",
   "status",
-  "date",
-  "created_at",
-  "payment",
-  "paymentmethod",
-  "charge_currency",
-  "deposit_currency",
-  "shipping_tracking_number",
-  "shipping_tracking_url",
-].join(", ");
-
-const BASE_ORDER_FIELDS = [
-  "id",
-  "order_number",
-  "items",
-  "amount",
-  "status",
-  "date",
   "created_at",
   "payment",
   "paymentmethod",
@@ -132,15 +111,11 @@ const buildOrderText = (order: OrderRow) => {
 
   return [
     `Order #${getOrderNumber(order)}`,
-    `Date: ${formatDate(order.date || order.created_at)}`,
+    `Date: ${formatDate(order.created_at)}`,
     `Status: ${order.status || "N/A"}`,
     `Payment: ${order.payment ? "Paid" : "Not paid"}`,
     `Payment method: ${order.paymentmethod || "N/A"}`,
     `Total: ${formatMoney(order.amount, currency)}`,
-    order.shipping_tracking_number
-      ? `Tracking number: ${order.shipping_tracking_number}`
-      : "",
-    order.shipping_tracking_url ? `Tracking link: ${order.shipping_tracking_url}` : "",
     "",
     "Items:",
     ...itemLines,
@@ -183,24 +158,15 @@ const buildOrderHtml = (order: OrderRow) => {
         .join("")
     : `<tr><td colspan="2" style="padding:10px 0;color:#64748b;">No item details were included with this order.</td></tr>`;
 
-  const tracking = order.shipping_tracking_number
-    ? `<p><strong>Tracking number:</strong> ${escapeHtml(order.shipping_tracking_number)}</p>`
-    : "";
-  const trackingLink = order.shipping_tracking_url
-    ? `<p><a href="${escapeHtml(order.shipping_tracking_url)}">Open tracking link</a></p>`
-    : "";
-
   return `
     <div style="font-family:Arial,Helvetica,sans-serif;color:#111827;line-height:1.5;">
       <h1 style="font-size:22px;">Your ReShareLoop order summary</h1>
       <p>Here is the order information you requested from ReShareLoop chat.</p>
       <p><strong>Order #${escapeHtml(getOrderNumber(order))}</strong></p>
-      <p><strong>Date:</strong> ${escapeHtml(formatDate(order.date || order.created_at))}</p>
+      <p><strong>Date:</strong> ${escapeHtml(formatDate(order.created_at))}</p>
       <p><strong>Status:</strong> ${escapeHtml(order.status || "N/A")}</p>
       <p><strong>Payment:</strong> ${escapeHtml(order.payment ? "Paid" : "Not paid")}</p>
       <p><strong>Payment method:</strong> ${escapeHtml(order.paymentmethod || "N/A")}</p>
-      ${tracking}
-      ${trackingLink}
       <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:18px;">
         ${itemRows}
       </table>
@@ -258,13 +224,12 @@ export const sendOrderSummaryEmail = async (
   }
 
   const requestedOrderReference = extractOrderReference(latestUserMessage);
-  const ownerFilter = `buyer_id.eq.${authData.user.id},user_id.eq.${authData.user.id}`;
   const buildQuery = (fields: string) => {
     if (requestedOrderReference) {
       const orderQuery = userSupabase
         .from("orders")
         .select(fields)
-        .or(ownerFilter);
+        .eq("buyer_id", authData.user.id);
       return /^\d+$/.test(requestedOrderReference)
         ? orderQuery.eq("id", requestedOrderReference)
         : orderQuery.eq("order_number", requestedOrderReference);
@@ -272,27 +237,22 @@ export const sendOrderSummaryEmail = async (
       return userSupabase
         .from("orders")
         .select(fields)
-        .or(ownerFilter)
+        .eq("buyer_id", authData.user.id)
         .order("created_at", { ascending: false })
         .limit(1);
     }
   };
 
-  let { data, error } = await buildQuery(SELECT_ORDER_FIELDS);
-  if (error && error.message?.includes("shipping_tracking")) {
-    const fallback = await buildQuery(BASE_ORDER_FIELDS);
-    data = fallback.data;
-    error = fallback.error;
-  }
+  const { data, error } = await buildQuery(SELECT_ORDER_FIELDS);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  const legacyOrder = Array.isArray(data)
+  const orderRow = Array.isArray(data)
     ? (data[0] as OrderRow | undefined)
     : null;
-  if (!legacyOrder) {
+  if (!orderRow) {
     return {
       success: true,
       reply: requestedOrderReference
@@ -304,7 +264,7 @@ export const sendOrderSummaryEmail = async (
 
   const order = (await hydrateOrderWithItems(
     userSupabase,
-    legacyOrder
+    orderRow
   )) as OrderRow;
   const serviceSupabase = createServiceClient();
   const orderNumber = getOrderNumber(order);

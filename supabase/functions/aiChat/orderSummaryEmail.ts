@@ -23,14 +23,11 @@ type OrderRow = {
   items?: OrderItem[];
   amount?: number | string;
   status?: string;
-  date?: string;
   created_at?: string;
   payment?: boolean;
   paymentmethod?: string;
   charge_currency?: string;
   deposit_currency?: string;
-  shipping_tracking_number?: string | null;
-  shipping_tracking_url?: string | null;
 };
 
 const RECENT_ORDER_LIMIT = 5;
@@ -38,26 +35,8 @@ const RECENT_ORDER_LIMIT = 5;
 const ORDER_SELECT_FIELDS = [
   "id",
   "order_number",
-  "items",
   "amount",
   "status",
-  "date",
-  "created_at",
-  "payment",
-  "paymentmethod",
-  "charge_currency",
-  "deposit_currency",
-  "shipping_tracking_number",
-  "shipping_tracking_url",
-].join(", ");
-
-const BASE_ORDER_SELECT_FIELDS = [
-  "id",
-  "order_number",
-  "items",
-  "amount",
-  "status",
-  "date",
   "created_at",
   "payment",
   "paymentmethod",
@@ -129,17 +108,11 @@ const orderTextBlock = (order: OrderRow) => {
 
   return [
     `Order #${getOrderNumber(order)}`,
-    `Date: ${formatDate(order.date || order.created_at)}`,
+    `Date: ${formatDate(order.created_at)}`,
     `Status: ${order.status || "N/A"}`,
     `Payment: ${order.payment ? "Paid" : "Not paid"}`,
     `Payment method: ${order.paymentmethod || "N/A"}`,
     `Total: ${formatMoney(order.amount, currency)}`,
-    order.shipping_tracking_number
-      ? `Tracking number: ${order.shipping_tracking_number}`
-      : "",
-    order.shipping_tracking_url
-      ? `Tracking link: ${order.shipping_tracking_url}`
-      : "",
     "Items:",
     ...itemLines,
   ]
@@ -174,22 +147,11 @@ const orderHtmlBlock = (order: OrderRow) => {
     }).join("")
     : `<li style="margin:8px 0;color:#64748b;">No item details were included with this order.</li>`;
 
-  const tracking = order.shipping_tracking_number
-    ? `<p style="margin:4px 0;"><strong>Tracking:</strong> ${escapeHtml(
-      order.shipping_tracking_number
-    )}</p>`
-    : "";
-  const trackingLink = order.shipping_tracking_url
-    ? `<p style="margin:4px 0;"><a href="${
-      escapeHtml(order.shipping_tracking_url)
-    }">Open tracking link</a></p>`
-    : "";
-
   return `
     <section style="border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin:16px 0;">
       <h2 style="font-size:18px;margin:0 0 8px;">Order #${escapeHtml(getOrderNumber(order))}</h2>
       <p style="margin:4px 0;"><strong>Date:</strong> ${escapeHtml(
-        formatDate(order.date || order.created_at)
+        formatDate(order.created_at)
       )}</p>
       <p style="margin:4px 0;"><strong>Status:</strong> ${escapeHtml(
         order.status || "N/A"
@@ -200,8 +162,6 @@ const orderHtmlBlock = (order: OrderRow) => {
       <p style="margin:4px 0;"><strong>Payment method:</strong> ${escapeHtml(
         order.paymentmethod || "N/A"
       )}</p>
-      ${tracking}
-      ${trackingLink}
       <ul style="padding-left:18px;margin:12px 0;">${itemRows}</ul>
       <p style="margin:8px 0 0;font-size:16px;"><strong>Total:</strong> ${
     escapeHtml(formatMoney(order.amount, currency))
@@ -262,21 +222,12 @@ const fetchRecentOrders = async (
   userSupabase: ReturnType<typeof createClient>,
   userId: string
 ) => {
-  const ownerFilter = `buyer_id.eq.${userId},user_id.eq.${userId}`;
-  const buildQuery = (fields: string) =>
-    userSupabase
-      .from("orders")
-      .select(fields)
-      .or(ownerFilter)
-      .order("created_at", { ascending: false })
-      .limit(RECENT_ORDER_LIMIT);
-
-  let { data, error } = await buildQuery(ORDER_SELECT_FIELDS);
-  if (error && error.message?.includes("shipping_tracking")) {
-    const fallback = await buildQuery(BASE_ORDER_SELECT_FIELDS);
-    data = fallback.data;
-    error = fallback.error;
-  }
+  const { data, error } = await userSupabase
+    .from("orders")
+    .select(ORDER_SELECT_FIELDS)
+    .eq("buyer_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(RECENT_ORDER_LIMIT);
 
   if (error) throw new Error(error.message);
   const orders = Array.isArray(data) ? (data as OrderRow[]) : [];

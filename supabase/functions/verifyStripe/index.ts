@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import Stripe from "https://esm.sh/stripe@12.18.0";
+import { hydrateOrderWithItems } from "../_shared/orderItems.js";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
   apiVersion: "2023-10-16",
@@ -154,16 +155,16 @@ serve(async (req) => {
     });
   }
 
-  const { data: order, error } = await supabase
+  const { data: orderRow, error } = await supabase
     .from("orders")
     .select(
-      "id, items, amount, shipping_fee, rent_breakdown, rent_subtotal, purchase_subtotal, deposit_total, deposit_currency, charge_currency, deposit_hold_status, payment, paymentmethod, address, stripe_session_id"
+      "id, amount, shipping_fee, rent_breakdown, rent_subtotal, purchase_subtotal, deposit_total, deposit_currency, charge_currency, deposit_hold_status, payment, paymentmethod, address, stripe_session_id"
     )
     .eq("id", Number(orderId))
-    .or(`buyer_id.eq.${authData.user.id},user_id.eq.${authData.user.id}`)
+    .eq("buyer_id", authData.user.id)
     .single();
 
-  if (error || !order) {
+  if (error || !orderRow) {
     return new Response(
       JSON.stringify({ success: false, error: "Order not found" }),
       {
@@ -172,6 +173,8 @@ serve(async (req) => {
       }
     );
   }
+
+  const order = await hydrateOrderWithItems(supabase, orderRow);
 
   if (order.payment) {
     return new Response(

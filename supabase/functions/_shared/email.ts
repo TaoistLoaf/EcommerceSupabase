@@ -445,7 +445,7 @@ export const sendOrderEmails = async ({
 }: SendEmailOptions) => {
   const { data: order, error } = await supabase
     .from("orders")
-    .select("*")
+    .select("id,order_number,buyer_id,address,charge_currency,deposit_currency,status,amount,paymentmethod")
     .eq("id", orderId)
     .single();
 
@@ -463,7 +463,7 @@ export const sendOrderEmails = async ({
   const orderUrl = `${siteUrl.replace(/\/$/, "")}/orders`;
   const orderNumber = order.order_number || order.id;
   const buyerEmail =
-    address.email || (await getUserEmail(supabase, order.buyer_id || order.user_id));
+    address.email || (await getUserEmail(supabase, order.buyer_id));
   const results: unknown[] = [];
 
   if (buyerEmail) {
