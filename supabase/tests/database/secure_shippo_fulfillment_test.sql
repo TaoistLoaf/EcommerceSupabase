@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(15);
+select plan(14);
 
 select has_function(
   'public', 'reserve_seller_shippo_label', array['bigint', 'text'],
@@ -73,16 +73,10 @@ values
     '43000000-0000-4000-8000-000000000002'
   );
 
-insert into public.orders (items, buyer_id, user_id, order_id, amount)
+insert into public.orders (buyer_id, order_number, amount)
 values (
-  '[
-    {"id":"45000000-0000-4000-8000-000000000003","seller_id":"42000000-0000-4000-8000-000000000002","name":"One","quantity":1,"price":20},
-    {"id":"46000000-0000-4000-8000-000000000003","seller_id":"43000000-0000-4000-8000-000000000002","name":"Two","quantity":1,"price":30},
-    {"seller_id":"44000000-0000-4000-8000-000000000002","name":"Untrusted legacy line","quantity":1,"price":1}
-  ]'::jsonb,
   '41000000-0000-4000-8000-000000000001',
-  '41000000-0000-4000-8000-000000000001',
-  'secure-shippo-test', 50
+  '20261006130000-A1B2C3-00000001', 50
 );
 
 insert into public.order_items (
@@ -91,13 +85,13 @@ insert into public.order_items (
 )
 values
   (
-    (select id from public.orders where order_id = 'secure-shippo-test'), 1,
+    (select id from public.orders where order_number = '20261006130000-A1B2C3-00000001'), 1,
     '45000000-0000-4000-8000-000000000003',
     '42000000-0000-4000-8000-000000000002', 'purchase', 'One',
     1, 20, 20, 'usd', '{}'::jsonb
   ),
   (
-    (select id from public.orders where order_id = 'secure-shippo-test'), 2,
+    (select id from public.orders where order_number = '20261006130000-A1B2C3-00000001'), 2,
     '46000000-0000-4000-8000-000000000003',
     '43000000-0000-4000-8000-000000000002', 'purchase', 'Two',
     1, 30, 30, 'usd', '{}'::jsonb
@@ -113,7 +107,7 @@ set local role authenticated;
 select set_config(
   'test.shippo_purchase_token',
   public.reserve_seller_shippo_label(
-    (select id from public.orders where order_id = 'secure-shippo-test'),
+    (select id from public.orders where order_number = '20261006130000-A1B2C3-00000001'),
     'rate-one'
   )::text,
   true
@@ -145,7 +139,7 @@ set local role authenticated;
 select throws_like(
   format(
     'select public.reserve_seller_shippo_label(%L::bigint, %L)',
-    (select id from public.orders where order_id = 'secure-shippo-test'),
+    (select id from public.orders where order_number = '20261006130000-A1B2C3-00000001'),
     'rate-one'
   ),
   '%Label purchase already in progress%',
@@ -155,7 +149,7 @@ select throws_like(
 select is(
   (
     public.record_seller_shippo_label(
-      (select id from public.orders where order_id = 'secure-shippo-test'),
+      (select id from public.orders where order_number = '20261006130000-A1B2C3-00000001'),
       current_setting('test.shippo_purchase_token')::uuid,
       'rate-one', 'transaction-one', 'USPS', 'Priority Mail', 8.25, 'usd',
       'https://labels.example/one.pdf', 'TRACK-ONE',
@@ -195,19 +189,9 @@ select is(
   'pending',
   'another seller fulfillment should remain pending'
 );
-select is(
-  (
-    select shipping_tracking_number
-    from public.orders
-    where order_id = 'secure-shippo-test'
-  ),
-  null,
-  'multi-seller tracking should not be collapsed onto the shared order header'
-);
-
 select set_config(
   'test.shippo_order_id',
-  (select id::text from public.orders where order_id = 'secure-shippo-test'),
+  (select id::text from public.orders where order_number = '20261006130000-A1B2C3-00000001'),
   true
 );
 select set_config(
@@ -224,7 +208,7 @@ select throws_like(
     'fake-rate'
   ),
   '%Order not found%',
-  'a seller found only in legacy JSON should not purchase a label'
+  'an unrelated seller should not purchase a label'
 );
 
 select * from finish();

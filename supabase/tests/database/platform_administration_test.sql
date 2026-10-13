@@ -72,9 +72,12 @@ select policies_are(
     'Active banners are public',
     'Platform admins can create banners',
     'Platform admins can delete banners',
-    'Platform admins can update banners'
+    'Platform admins can update banners',
+    'Sellers can create their own banners',
+    'Sellers can delete their own banners',
+    'Sellers can update their own banners'
   ],
-  'global banner writes should be restricted to platform admins'
+  'platform banners are admin-owned and seller banners are seller-scoped'
 );
 
 select ok(
@@ -84,4 +87,3 @@ select ok(
 
 select * from finish();
 rollback;
-

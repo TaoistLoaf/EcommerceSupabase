@@ -104,21 +104,21 @@ values
   ('20000000-0000-4000-8000-000000000002', 'active', 'platform_admin'),
   ('21000000-0000-4000-8000-000000000002', 'active', 'platform_admin');
 
-insert into public.products (id, name, price, seller_id, rentable)
+insert into public.products (id, name, price, seller_id, listing_type)
 values
   (
     '30000000-0000-4000-8000-000000000003',
     'Custom shirt',
     25,
     '20000000-0000-4000-8000-000000000002',
-    false
+    'sale'
   ),
   (
     '31000000-0000-4000-8000-000000000003',
     'Rental camera',
     100,
     '21000000-0000-4000-8000-000000000002',
-    true
+    'rental'
   );
 
 select set_config(

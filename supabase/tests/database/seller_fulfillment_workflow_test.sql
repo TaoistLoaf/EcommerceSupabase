@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(15);
+select plan(14);
 
 select has_function(
   'public',
@@ -113,23 +113,10 @@ values
     '27000000-0000-4000-8000-000000000002'
   );
 
-insert into public.orders (items, buyer_id, user_id, order_id, amount)
+insert into public.orders (buyer_id, order_number, amount)
 values (
-  '[
-    {
-      "id":"35000000-0000-4000-8000-000000000003",
-      "seller_id":"26000000-0000-4000-8000-000000000002",
-      "name":"Seller one product","quantity":1,"price":25
-    },
-    {
-      "id":"36000000-0000-4000-8000-000000000003",
-      "seller_id":"27000000-0000-4000-8000-000000000002",
-      "name":"Seller two product","quantity":1,"price":30
-    }
-  ]'::jsonb,
   '15000000-0000-4000-8000-000000000001',
-  '15000000-0000-4000-8000-000000000001',
-  'fulfillment-workflow-test',
+  '20261006130001-D4E5F6-00000002',
   55
 );
 
@@ -148,14 +135,14 @@ insert into public.order_items (
 )
 values
   (
-    (select id from public.orders where order_id = 'fulfillment-workflow-test'),
+    (select id from public.orders where order_number = '20261006130001-D4E5F6-00000002'),
     1,
     '35000000-0000-4000-8000-000000000003',
     '26000000-0000-4000-8000-000000000002',
     'purchase', 'Seller one product', 1, 25, 25, 'usd', '{}'::jsonb
   ),
   (
-    (select id from public.orders where order_id = 'fulfillment-workflow-test'),
+    (select id from public.orders where order_number = '20261006130001-D4E5F6-00000002'),
     2,
     '36000000-0000-4000-8000-000000000003',
     '27000000-0000-4000-8000-000000000002',
@@ -169,7 +156,7 @@ select
   orders.id,
   '26000000-0000-4000-8000-000000000002'::uuid
 from public.orders
-where orders.order_id = 'fulfillment-workflow-test';
+where orders.order_number = '20261006130001-D4E5F6-00000002';
 
 select set_config(
   'request.jwt.claims',
@@ -181,7 +168,7 @@ set local role authenticated;
 select is(
   (
     public.update_seller_fulfillment(
-      (select id from public.orders where order_id = 'fulfillment-workflow-test'),
+      (select id from public.orders where order_number = '20261006130001-D4E5F6-00000002'),
       'shipped',
       'TRACK-ONE',
       'https://tracking.example/one'
@@ -223,19 +210,10 @@ select is(
 select is(
   (
     select status from public.orders
-    where order_id = 'fulfillment-workflow-test'
+    where order_number = '20261006130001-D4E5F6-00000002'
   ),
   'Shipped',
   'the compatibility order status should be derived from fulfillments'
-);
-
-select is(
-  (
-    select shipping_tracking_number from public.orders
-    where order_id = 'fulfillment-workflow-test'
-  ),
-  null,
-  'multi-seller tracking should not be collapsed onto the order header'
 );
 
 select set_config(
@@ -248,7 +226,7 @@ set local role authenticated;
 select is(
   (
     public.update_seller_fulfillment(
-      (select id from public.orders where order_id = 'fulfillment-workflow-test'),
+      (select id from public.orders where order_number = '20261006130001-D4E5F6-00000002'),
       'out_for_delivery',
       'TRACK-TWO',
       null
@@ -271,7 +249,7 @@ select is(
 
 select set_config(
   'test.fulfillment_order_id',
-  (select id::text from public.orders where order_id = 'fulfillment-workflow-test'),
+  (select id::text from public.orders where order_number = '20261006130001-D4E5F6-00000002'),
   true
 );
 select set_config(

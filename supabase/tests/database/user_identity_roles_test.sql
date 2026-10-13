@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(17);
+select plan(16);
 
 select has_table(
   'public',
@@ -117,17 +117,6 @@ select ok(
       and not tgisinternal
   ),
   'new Auth users should be synchronized by a trigger'
-);
-
-select ok(
-  exists (
-    select 1
-    from pg_constraint
-    where conname = 'users_id_auth_users_fkey'
-      and conrelid = 'public.users'::regclass
-      and confrelid = 'auth.users'::regclass
-  ),
-  'legacy public.users ids should be constrained to auth.users'
 );
 
 select policies_are(

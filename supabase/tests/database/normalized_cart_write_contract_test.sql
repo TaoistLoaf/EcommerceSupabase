@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(8);
+select plan(7);
 
 select has_function(
   'public', 'set_normalized_cart_line',
@@ -66,14 +66,6 @@ select lives_ok(
 
 reset role;
 
-select is(
-  (
-    select items from public.carts
-    where user_id = '91000000-0000-4000-8000-000000000001'
-  ),
-  '{}'::jsonb,
-  'the normalized contract should not write legacy cart JSON'
-);
 select is(
   (
     select quantity from public.cart_items

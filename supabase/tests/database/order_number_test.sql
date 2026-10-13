@@ -30,8 +30,8 @@ select is(
   'the format should be UTC timestamp, short id, and padded integer id'
 );
 
-insert into public.orders (items, amount)
-values ('[]'::jsonb, 0)
+insert into public.orders (amount)
+values (0)
 returning id, order_number \gset generated_order_
 
 select matches(
@@ -48,8 +48,7 @@ select is(
 
 select throws_like(
   format(
-    'insert into public.orders (items, amount, order_number) values (%L::jsonb, 0, %L)',
-    '[]',
+    'insert into public.orders (amount, order_number) values (0, %L)',
     'invalid-order-number'
   ),
   '%orders_order_number_format_check%',
@@ -70,8 +69,8 @@ select throws_like(
 -- canonical column is introduced and therefore starts with a NULL value.
 alter table public.orders alter column order_number drop not null;
 alter table public.orders disable trigger set_orders_order_number;
-insert into public.orders (items, amount, order_number)
-values ('[]'::jsonb, 0, null)
+insert into public.orders (amount, order_number)
+values (0, null)
 returning id \gset legacy_order_
 alter table public.orders enable trigger set_orders_order_number;
 
